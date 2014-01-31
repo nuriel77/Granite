@@ -251,6 +251,8 @@ sub _verify_client {
 sub _sanitize_input {
     my ($wheel_id, $input) = @_;
 
+    return $input if $input eq '';
+
     unless ($input =~ /^[a-zA-Z0-9_\-\.,\!\%\$\^\&\(\)\[\]\{\}\+\=\@\?]+$/){
         $log->debug( '[ ' . $wheel_id . ' ] Client input contains invalid characters, erasing content.' );
         $input = '';

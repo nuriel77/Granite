@@ -1,15 +1,10 @@
 #!/usr/bin/env perl
 use warnings;
 use strict;
-use lib 'lib';
-use vars '$debug';
+use FindBin;
+use lib "$FindBin::Bin/../lib";
 use Granite;
+use vars '$debug';
 
 $debug = $ENV{GRANITE_DEBUG};
-
-if ( !$ENV{GRANITE_FOREGROUND} and !$ENV{GRANITE_DEBUG} ){
-    $debug && print STDERR "Forking.\n";
-    fork && exit;
-}
-
 Granite::init();

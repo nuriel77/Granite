@@ -1,8 +1,10 @@
 package Granite::Engine;
 use strict;
 use warnings;
+use Granite::Engine::Daemonize;
 use Granite::Component::Server;
 use Granite::Component::Scheduler::QueueWatcher;
+use Cwd 'getcwd';
 use POE;
 use vars qw($log $debug);
 
@@ -11,6 +13,15 @@ sub init {
 
     $log->debug('At Granite::Engine::init');
 
+    my $daemon = Granite::Engine::Daemonize->new(
+        logger   => $log,
+        workdir  => $ENV{GRANITE_WORK_DIR} || getcwd(),
+        pid_file => $ENV{GRANITE_PID_FILE} || '/var/run/granite.pid'
+    );
+    $daemon->init;
+
+
+    # Start main session
     POE::Session->create(
         inline_states => {
             _start       => \&init_components,
@@ -21,7 +32,10 @@ sub init {
     );
 
     $log->debug('Starting up engine');
+
     $poe_kernel->run();
+    # Daemonize
+
 }
 
 sub init_components {

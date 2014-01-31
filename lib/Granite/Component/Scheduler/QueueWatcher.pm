@@ -17,11 +17,18 @@ sub run {
 }
 
 sub init_watcher {
-    warn "queue watcher alive\n";
+    #warn "queue watcher alive\n";
     $_[KERNEL]->delay("process_input" => 1, 'bla');
 }
 
-sub process_input { warn "Process input....". $_[ARG0] . "\n"; $_[KERNEL]->delay("save_queue_state" => 1, '');}
-sub save_queue_state { warn "SSSAASASASve queue state\n"; $_[KERNEL]->delay("process_input" => 1, 'back') }
+sub process_input {
+    #warn "Process input....". $_[ARG0] . "\n";
+    $_[KERNEL]->delay("save_queue_state" => 1, '');
+}
+
+sub save_queue_state {
+    #warn "SSSAASASASve queue state\n";
+    $_[KERNEL]->delay("process_input" => 1, 'back') 
+}
 1;
 
