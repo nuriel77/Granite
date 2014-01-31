@@ -7,31 +7,19 @@ use Log::Log4perl qw(:easy);
 use Granite::Engine;
 use Granite::Utils::ConfigLoader;
 use Moose;
-with 'Granite::Utils::Debugger';
-use namespace::autoclean;
+    with 'Granite::Engine::Logger';
 use vars qw( $debug $log $log_config );
 
 our $VERSION = 1.0;
-
-$SIG{INT} = \&QUIT;
-$SIG{__DIE__} = sub {
-    return if $^S; # skip eval
-
-    $Log::Log4perl::caller_depth++;
-
-    #unlink ( $ENV{GRANITE_PID_FILE} || $CONF::cfg->{main}->{pid_file} || '/var/run/granite.pid' )
-    #    if -f ( $ENV{GRANITE_PID_FILE} || $CONF::cfg->{main}->{pid_file} || '/var/run/granite.pid' );
-
-    LOGDIE @_;
-};
 
 sub init {
 
     $debug = $::debug || 0;
 
-    my $config_file = $ENV{GRANITE_CONFIG} || './conf/granite.conf';
+    $SIG{INT} = \&QUIT;
 
     # Load config to $CONF::cfg (global)
+    my $config_file = $ENV{GRANITE_CONFIG} || './conf/granite.conf';
     Granite::Utils::ConfigLoader->load_app_config($config_file);
 
     # Load log config
@@ -41,7 +29,9 @@ sub init {
     Log::Log4perl::Config->allow_code(0);
     Log::Log4perl::init($log_config);
     $log = Log::Log4perl->get_logger(__PACKAGE__);
-                                
+
+    set_logger_stdout($log) if $debug;
+
     # Init engine
     Granite::Engine::init( $log, $debug );
     exit;
@@ -49,11 +39,10 @@ sub init {
 
 sub QUIT
 {
-    $log->debug('Termination signal detected...');
-    debug ("Termination signal detected");
-    unlink ( $ENV{GRANITE_PID_FILE} || $CONF::cfg->{main}->{pid_file} || '/var/run/granite.pid' )
-        if -e ( $ENV{GRANITE_PID_FILE} || $CONF::cfg->{main}->{pid_file} || '/var/run/granite.pid' );
+    $log->debug("Termination signal detected\n");
     exit 1;
 }
+
+__PACKAGE__->meta->make_immutable(inline_constructor => 0);
 
 1;

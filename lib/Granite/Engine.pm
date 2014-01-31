@@ -8,7 +8,7 @@ use Granite::Component::Scheduler::QueueWatcher;
 use Cwd 'getcwd';
 use POE;
 use Moose;
-with 'Granite::Modules::Schedulers', 'Granite::Utils::Debugger';
+    with 'Granite::Modules::Schedulers';
 use namespace::autoclean;
 use vars qw($log $debug);
 
@@ -17,12 +17,12 @@ sub init {
 
     $log->debug('At Granite::Engine::init');
 
-    unless ( $ENV{GRANITE_FOREGROUND} ){
+    if ( $ENV{GRANITE_DAEMONIZE} || $CONF::cfg->{main}->{daemonize} ){
         # Daemonize
         my $daemon = Granite::Engine::Daemonize->new(
             logger   => $log,
             workdir  => $ENV{GRANITE_WORK_DIR} || getcwd(),
-            pid_file => $ENV{GRANITE_PID_FILE} || '/var/run/granite.pid'
+            pid_file => $ENV{GRANITE_PID_FILE} || $CONF::cfg->{main}->{pid_file} || '/var/run/granite/granite.pid'
         );
     }
 
@@ -79,8 +79,7 @@ sub _terminate {
     my ($heap, $kernel) = @_[ HEAP, KERNEL ];
     $log->debug('Terminating...');
     delete $heap->{server};
-    debug('Terminating');    
-    exit;
+    Granite->QUIT;
 }
 
 1;
