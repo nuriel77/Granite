@@ -18,14 +18,12 @@ sub init {
     $log->debug('At Granite::Engine::init');
 
     unless ( $ENV{GRANITE_FOREGROUND} ){
+        # Daemonize
         my $daemon = Granite::Engine::Daemonize->new(
             logger   => $log,
             workdir  => $ENV{GRANITE_WORK_DIR} || getcwd(),
             pid_file => $ENV{GRANITE_PID_FILE} || '/var/run/granite.pid'
         );
-    
-        # Daemonize
-        $daemon->init;
     }
 
     &_init_modules();

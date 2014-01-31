@@ -1,50 +1,50 @@
 package Granite::Engine::Daemonize;
 use strict;
 use warnings;
+use File::Slurp 'read_file', 'write_file';
 use Proc::ProcessTable;
 use POSIX 'setsid';
-use Carp qw(cluck confess confess);
+use Carp qw(cluck confess);
 use Moose;
 with 'Granite::Utils::Debugger';
 use namespace::autoclean;
 
-has 'logger'   => ( is => 'rw', isa => 'Object', required => 1 );
-has 'pid_file' => ( is => 'rw', isa => 'Str', required => 1 );
-has 'workdir'  => ( is => 'rw', isa => 'Str', required => 1 );
+has 'logger'   => ( is => 'ro', isa => 'Object', required => 1 );
+has 'pid_file' => ( is => 'ro', isa => 'Str', required => 1 );
+has 'workdir'  => ( is => 'ro', isa => 'Str', required => 1 );
 
 $| = 1;
 
-sub init {
-    my $self = shift;
+around 'new' => sub {
+    my $orig = shift;
+    my $class = shift;
+    my $self = $class->$orig(@_);
 
-    $self->logger->trace('Granite::Engine::Daemonize - Daemonizing');
-    debug( "Daemonizing" );
+    $self->logger->trace('At Granite::Engine::Daemonize');
 
     my $pid_file = $self->pid_file;
 
     # check if pid already exists
     # and if daemon is already running
     if ( -f $pid_file ){
-        my $pid;
-        open ( PID, "<$pid_file") or confess "Cannot open pid file: $!\n";
-        $pid .= $_ while <PID>;
-        close PID;
-        my $t = new Proc::ProcessTable;
-        if ( grep { $_->pid == $pid } @{$t->table} ){
-            die "Error: Already running with $pid\n";
-        }
-        else {
-            die "Error: pid file '$pid_file' exists but daemon is not running\n";
+        if ( my $pid = read_file($pid_file, err_mode => 'carp', chomp => 1) ){
+            my $t = new Proc::ProcessTable;
+            for ( @{$t->table} ){
+                confess "Error: Already running with $pid\n" if ( $_->pid == $pid );
+            }
         }
     }
 
+    debug( "Daemonizing" );
     my $pid = fork ();
+
     if ($pid < 0) {
         confess "fork: $!\n";
     } elsif ($pid) {
-        open ( PIDFILE, ">$pid_file") or confess "Cannot open pid file\n";
-        print PIDFILE $pid;
-        close PIDFILE;            
+        unless ( write_file( $pid_file, { binmode => ':raw', err_mode => 'carp'}, $pid ) ){
+            die "Cannot write pid to '$pid_file'\n";
+        }
+        $self->logger->debug('Process datached from parent with pid ' . $pid);            
         exit 0;
     }
 
@@ -53,9 +53,10 @@ sub init {
     chdir $self->workdir or confess "Cannot chdir: $!\n";
     umask 0;
     delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
-    return $pid;
 
-}
+    return $self;
+
+};
 
 __PACKAGE__->meta->make_immutable(inline_constructor => 0);
 

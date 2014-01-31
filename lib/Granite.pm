@@ -18,8 +18,9 @@ $SIG{__DIE__} = sub {
     return if $^S; # skip eval
 
     $Log::Log4perl::caller_depth++;
-    unlink ( $ENV{GRANITE_PID_FILE} || $CONF::cfg->{main}->{pid_file} || '/var/run/granite.pid' )
-        if -f ( $ENV{GRANITE_PID_FILE} || $CONF::cfg->{main}->{pid_file} || '/var/run/granite.pid' );
+
+    #unlink ( $ENV{GRANITE_PID_FILE} || $CONF::cfg->{main}->{pid_file} || '/var/run/granite.pid' )
+    #    if -f ( $ENV{GRANITE_PID_FILE} || $CONF::cfg->{main}->{pid_file} || '/var/run/granite.pid' );
 
     LOGDIE @_;
 };
