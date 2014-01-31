@@ -15,46 +15,44 @@ $| = 1;
 sub init {
     my $self = shift;
 
-    unless ( $ENV{GRANITE_FOREGROUND} ){
+    $self->logger->trace('Granite::Engine::Daemonize - Daemonizing');
+    $::debug && print STDERR "Daemonizing\n";
 
-        $self->logger->trace('Granite::Engine::Daemonize - Daemonizing');
-        $::debug && print STDERR "Daemonizing\n";
+    my $pid_file = $self->pid_file;
 
-        my $pid_file = $self->pid_file;
-
-        # check if pid already exists
-        # and if daemon is already running
-        if ( -f $pid_file ){
-            my $pid;
-            open ( PID, "<$pid_file") or croak "Cannot open pid file: $!\n";
-            $pid .= $_ while <PID>;
-            close PID;
-            my $t = new Proc::ProcessTable;
-            if ( grep { $_->pid == $pid } @{$t->table} ){
-                die "Error: Already running with $pid\n";
-            }
-            else {
-                die "Error: pid file '$pid_file' exists but daemon is not running\n";
-            }
+    # check if pid already exists
+    # and if daemon is already running
+    if ( -f $pid_file ){
+        my $pid;
+        open ( PID, "<$pid_file") or croak "Cannot open pid file: $!\n";
+        $pid .= $_ while <PID>;
+        close PID;
+        my $t = new Proc::ProcessTable;
+        if ( grep { $_->pid == $pid } @{$t->table} ){
+            die "Error: Already running with $pid\n";
         }
-
-        my $pid = fork ();
-        if ($pid < 0) {
-            croak "fork: $!\n";
-        } elsif ($pid) {
-            open ( PIDFILE, ">$pid_file") or croak "Cannot open pid file\n";
-            print PIDFILE $pid;
-            close PIDFILE;            
-            exit 0;
+        else {
+            die "Error: pid file '$pid_file' exists but daemon is not running\n";
         }
-
-        POSIX::setsid or croak "setsid: $!\n";
-
-        chdir $self->workdir or croak "Cannot chdir: $!\n";
-        umask 0;
-        delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
-        return $pid;
     }
+
+    my $pid = fork ();
+    if ($pid < 0) {
+        croak "fork: $!\n";
+    } elsif ($pid) {
+        open ( PIDFILE, ">$pid_file") or croak "Cannot open pid file\n";
+        print PIDFILE $pid;
+        close PIDFILE;            
+        exit 0;
+    }
+
+    POSIX::setsid or croak "setsid: $!\n";
+
+    chdir $self->workdir or croak "Cannot chdir: $!\n";
+    umask 0;
+    delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
+    return $pid;
+
 }
 
 __PACKAGE__->meta->make_immutable(inline_constructor => 0);

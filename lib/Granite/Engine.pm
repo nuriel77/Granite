@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use Granite::Engine::Daemonize;
 use Granite::Component::Server;
+use Granite::Modules::Schedulers;
 use Granite::Component::Scheduler::QueueWatcher;
 use Cwd 'getcwd';
 use POE;
@@ -13,34 +14,39 @@ sub init {
 
     $log->debug('At Granite::Engine::init');
 
-    my $daemon = Granite::Engine::Daemonize->new(
-        logger   => $log,
-        workdir  => $ENV{GRANITE_WORK_DIR} || getcwd(),
-        pid_file => $ENV{GRANITE_PID_FILE} || '/var/run/granite.pid'
-    );
-    $daemon->init;
+    unless ( $ENV{GRANITE_FOREGROUND} ){
+        my $daemon = Granite::Engine::Daemonize->new(
+            logger   => $log,
+            workdir  => $ENV{GRANITE_WORK_DIR} || getcwd(),
+            pid_file => $ENV{GRANITE_PID_FILE} || '/var/run/granite.pid'
+        );
+    
+        # Daemonize
+        $daemon->init;
+    }
 
+    &_init_modules();
 
     # Start main session
     POE::Session->create(
         inline_states => {
-            _start       => \&init_components,
+            _start       => \&_init_components,
             init_server  => \&Granite::Component::Server::run,
             watch_queue  => \&Granite::Component::Scheduler::QueueWatcher::run,
-            _stop        => \&terminate,
+            _stop        => \&_terminate,
         }
     );
 
     $log->debug('Starting up engine');
 
     $poe_kernel->run();
-    # Daemonize
+
 
 }
 
-sub init_components {
+sub _init_components {
     my ($heap, $kernel) = @_[ HEAP, KERNEL ];
-    
+
     # Queue watcher
     $log->debug('Initializing Granite::Component::QueueWatcher');
     $kernel->yield("watch_queue");
@@ -50,16 +56,29 @@ sub init_components {
         $log->debug('Initializing Granite::Component::Server');
         $debug && print STDOUT "Initializing Granite::Component::Server\n";
         $kernel->yield("init_server", $log, $debug );
-    }    
+    }
 
 }
 
-sub terminate {
+sub _init_modules {
+
+    my $scheduler_modules = $CONF::cfg->{modules}->{scheduler};
+    my ($scheduler_name) = (keys %{$scheduler_modules})[0];
+    my $packages = $CONF::cfg->{modules}->{scheduler}->{$scheduler_name};
+
+    if ( my $error = Granite::Modules::Schedulers->init_scheduler_module ( $packages ) ) {
+        $log->logdie("Failed to load dynamic module '" . $scheduler_name . "': $error" );
+    }
+    else {
+        $log->debug("Loaded module '" . $scheduler_name . "'");
+    }
+
+}
+
+sub _terminate {
     my ($heap, $kernel) = @_[ HEAP, KERNEL ];
     $log->debug('Terminating...');
     exit;
 }
 
 1;
-
-

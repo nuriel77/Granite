@@ -1,4 +1,4 @@
-package Granite::Utils::LoadConfig;
+package Granite::Utils::ConfigLoader;
 use strict;
 use warnings;
 use YAML::Tiny;
