@@ -2,10 +2,13 @@ package Granite;
 use warnings;
 use strict;
 use Sys::Hostname;
-use Carp 'croak';
+use Carp 'confess';
 use Log::Log4perl qw(:easy);
 use Granite::Engine;
 use Granite::Utils::ConfigLoader;
+use Moose;
+with 'Granite::Utils::Debugger';
+use namespace::autoclean;
 use vars qw( $debug $log $log_config );
 
 our $VERSION = 1.0;
@@ -31,7 +34,7 @@ sub init {
     Granite::Utils::ConfigLoader->load_app_config($config_file);
 
     # Load log config
-    croak "Failed to load configuration\n"
+    confess "Failed to load configuration\n"
         unless ( $log_config = $CONF::cfg->{main}->{log_config} || './conf/log.conf' );
 
     Log::Log4perl::Config->allow_code(0);
@@ -46,7 +49,7 @@ sub init {
 sub QUIT
 {
     $log->debug('Termination signal detected...');
-    $debug && print STDERR "Termination signal detected\n";
+    debug ("Termination signal detected");
     unlink ( $ENV{GRANITE_PID_FILE} || $CONF::cfg->{main}->{pid_file} || '/var/run/granite.pid' )
         if -e ( $ENV{GRANITE_PID_FILE} || $CONF::cfg->{main}->{pid_file} || '/var/run/granite.pid' );
     exit 1;

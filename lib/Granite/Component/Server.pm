@@ -130,7 +130,7 @@ sub _client_accept {
     $log->debug('At _client_accept');
 
     unless ( $ENV{GRANITE_DISABLE_SSL} ){
-        $log->debug('Starting up SSLify on socket');
+        $log->debug('[ ' . $wheel_id .' ] Starting up SSLify on socket');
         eval {
             $socket = Server_SSLify_NonBlock(
                 SSLify_GetCTX(),
@@ -225,7 +225,7 @@ sub _verify_client {
 
     }
 
-    $log->debug("Verifying password\n");
+    $log->debug('[ ' . $wheel_id . " ] Verifying password\n");
     if ( $input ne 'system'  ){
         $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] Password authentication failure.\n" )
             if $canwrite;

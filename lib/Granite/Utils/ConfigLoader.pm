@@ -2,16 +2,16 @@ package Granite::Utils::ConfigLoader;
 use strict;
 use warnings;
 use YAML::Tiny;
-use Carp 'croak';
+use Carp 'confess';
 
 sub load_app_config {
     my $file = $_[1];
 
     if ( not -e $file ){
-        croak "Config file '$file' not found\n";
+        confess "Config file '$file' not found\n";
     }
     elsif ( not -r $file ){
-        croak "Cannot read file '$file': permission denied\n";
+        confess "Cannot read file '$file': permission denied\n";
     }
 
     #my $config = LoadFile( $file );
