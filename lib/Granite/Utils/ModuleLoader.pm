@@ -2,6 +2,7 @@ package Granite::Utils::ModuleLoader;
 use strict;
 use warnings;
 use Module::Load;
+use Moose::Role;
 
 sub load_module {
     my $modules = shift;
@@ -19,6 +20,8 @@ sub load_module {
 
     return $err ? $err : undef;
 }
+
+no Moose;
 
 1;
 

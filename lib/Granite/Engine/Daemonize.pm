@@ -3,8 +3,10 @@ use strict;
 use warnings;
 use Proc::ProcessTable;
 use POSIX 'setsid';
-use Carp qw(cluck croak confess);
+use Carp qw(cluck confess confess);
 use Moose;
+with 'Granite::Utils::Debugger';
+use namespace::autoclean;
 
 has 'logger'   => ( is => 'rw', isa => 'Object', required => 1 );
 has 'pid_file' => ( is => 'rw', isa => 'Str', required => 1 );
@@ -16,7 +18,7 @@ sub init {
     my $self = shift;
 
     $self->logger->trace('Granite::Engine::Daemonize - Daemonizing');
-    $::debug && print STDERR "Daemonizing\n";
+    debug( "Daemonizing" );
 
     my $pid_file = $self->pid_file;
 
@@ -24,7 +26,7 @@ sub init {
     # and if daemon is already running
     if ( -f $pid_file ){
         my $pid;
-        open ( PID, "<$pid_file") or croak "Cannot open pid file: $!\n";
+        open ( PID, "<$pid_file") or confess "Cannot open pid file: $!\n";
         $pid .= $_ while <PID>;
         close PID;
         my $t = new Proc::ProcessTable;
@@ -38,17 +40,17 @@ sub init {
 
     my $pid = fork ();
     if ($pid < 0) {
-        croak "fork: $!\n";
+        confess "fork: $!\n";
     } elsif ($pid) {
-        open ( PIDFILE, ">$pid_file") or croak "Cannot open pid file\n";
+        open ( PIDFILE, ">$pid_file") or confess "Cannot open pid file\n";
         print PIDFILE $pid;
         close PIDFILE;            
         exit 0;
     }
 
-    POSIX::setsid or croak "setsid: $!\n";
+    POSIX::setsid or confess "setsid: $!\n";
 
-    chdir $self->workdir or croak "Cannot chdir: $!\n";
+    chdir $self->workdir or confess "Cannot chdir: $!\n";
     umask 0;
     delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
     return $pid;
