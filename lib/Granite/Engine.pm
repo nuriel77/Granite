@@ -8,21 +8,25 @@ use Granite::Component::Scheduler::QueueWatcher;
 use Cwd 'getcwd';
 use POE;
 use Moose;
-    with 'Granite::Modules::Schedulers';
+    with 'Granite::Modules::Schedulers', 'Granite::Engine::Logger';
+
 use namespace::autoclean;
 use vars qw($log $debug);
 
 sub init {
     ( $log, $debug ) = @_;
 
+    set_logger_stdout($log) if $debug;
     $log->debug('At Granite::Engine::init');
 
-    if ( $ENV{GRANITE_DAEMONIZE} || $CONF::cfg->{main}->{daemonize} ){
+    if ( !$ENV{GRANITE_FOREGROUND} && $CONF::cfg->{main}->{daemonize} ){
         # Daemonize
         my $daemon = Granite::Engine::Daemonize->new(
             logger   => $log,
             workdir  => $ENV{GRANITE_WORK_DIR} || getcwd(),
-            pid_file => $ENV{GRANITE_PID_FILE} || $CONF::cfg->{main}->{pid_file} || '/var/run/granite/granite.pid'
+            pid_file => $ENV{GRANITE_PID_FILE}
+                || $CONF::cfg->{main}->{pid_file}
+                || '/var/run/granite/granite.pid'
         );
     }
 
@@ -38,7 +42,7 @@ sub init {
         }
     );
 
-    $log->debug('Starting up engine');
+    $log->info('Starting up engine');
 
     $poe_kernel->run();
 
@@ -79,5 +83,7 @@ sub _terminate {
     delete $heap->{server};
     Granite->QUIT;
 }
+
+__PACKAGE__->meta->make_immutable(inline_constructor => 0);
 
 1;
