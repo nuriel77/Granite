@@ -6,8 +6,6 @@ use Carp 'confess';
 use Log::Log4perl qw(:easy);
 use Granite::Engine;
 use Granite::Utils::ConfigLoader;
-use Moose;
-    with 'Granite::Engine::Logger';
 use vars qw( $debug $log $log_config );
 
 our $VERSION = 1.0;
@@ -30,8 +28,6 @@ sub init {
     Log::Log4perl::init($log_config);
     $log = Log::Log4perl->get_logger(__PACKAGE__);
 
-    set_logger_stdout($log) if $debug;
-
     # Init engine
     Granite::Engine::init( $log, $debug );
     exit;
@@ -42,7 +38,5 @@ sub QUIT
     $log->debug("Termination signal detected\n");
     exit 1;
 }
-
-__PACKAGE__->meta->make_immutable(inline_constructor => 0);
 
 1;

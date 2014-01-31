@@ -59,7 +59,7 @@ sub run {
                     ListenQueue  => $max_clients,
                     Reuse        => 'yes',
                     SuccessEvent => 'client_accept',
-                    FailureEvent => 'accept_failure',
+                    FailureEvent => 'server_error',
                 );
             },
             client_accept     => \&_client_accept,
@@ -67,7 +67,8 @@ sub run {
             disconnect        => \&_client_disconnect,
             verify_client     => \&_verify_client,
             close_delayed     => \&_close_delayed,
-            accept_failure    => \&_client_error
+            server_error      => \&_server_error,
+            client_error      => \&_client_error,
         }
     );
 
@@ -75,11 +76,22 @@ sub run {
 
 }
 
+sub _server_error {
+    my ($operation, $errnum, $errstr, $wheel_id) = @_[ARG0..ARG3];
+    $log->logdie("Server error: [$errnum] $errstr");
+    delete $_[HEAP]->{server};
+}
+
 sub _client_error {
-    #my ($operation, $errnum, $errstr, $wheel_id) = @_[ARG0..ARG3];
-    my ( $kernel, $heap, $wheel_id ) = @_[ KERNEL, HEAP, ARG0 ];
-    $log->debug("[ $wheel_id ] At _client_error ($heap)");
-    delete $heap->{server}->{$wheel_id}->{wheel};
+    my ( $kernel, $heap, $operation ) = @_[ KERNEL, HEAP, ARG0 ];
+    my ($errnum, $errstr, $wheel_id) = @_[ARG1..ARG3];
+    if ( $errnum > 0 ){
+        $log->warn("[ $wheel_id ] client_error: ($errnum) $errstr");
+        delete $heap->{server}->{$wheel_id}->{wheel};
+    }
+    else {
+        $log->info("[ $wheel_id ] Client disconnected");
+    }
 }
 
 sub _close_delayed {
@@ -90,7 +102,7 @@ sub _close_delayed {
     delete $heap->{server}->{$wheel_id}->{socket};
     delete $client_namespace->{$wheel_id};
 
-    $log->debug("[ " . $wheel_id . " ] Client disconnected.");
+    $log->info("[ " . $wheel_id . " ] Client disconnected.");
 }
 
 sub _client_disconnect {
@@ -156,7 +168,8 @@ sub _client_accept {
         Handle     => $socket,
         Driver     => POE::Driver::SysRW->new,
         Filter     => POE::Filter::Stream->new,
-        InputEvent => 'client_input'
+        InputEvent => 'client_input',
+        ErrorEvent => 'client_error'
     );
 
     my ( $remote_ip, $remote_port ) = _get_remote_address($socket);
