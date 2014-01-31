@@ -6,7 +6,6 @@ use Proc::ProcessTable;
 use POSIX 'setsid';
 use Carp qw(cluck confess);
 use Moose;
-with 'Granite::Utils::Debugger';
 use namespace::autoclean;
 
 has 'logger'   => ( is => 'ro', isa => 'Object', required => 1 );
@@ -20,7 +19,7 @@ around 'new' => sub {
     my $class = shift;
     my $self = $class->$orig(@_);
 
-    $self->logger->trace('At Granite::Engine::Daemonize');
+    $self->logger->debug('At Granite::Engine::Daemonize');
 
     my $pid_file = $self->pid_file;
 
@@ -35,16 +34,15 @@ around 'new' => sub {
         }
     }
 
-    debug( "Daemonizing" );
     my $pid = fork ();
 
     if ($pid < 0) {
         confess "fork: $!\n";
     } elsif ($pid) {
         unless ( write_file( $pid_file, { binmode => ':raw', err_mode => 'carp'}, $pid ) ){
-            die "Cannot write pid to '$pid_file'\n";
+            $self->logger->logdie( "Cannot write pid to '$pid_file'" );
         }
-        $self->logger->debug('Process datached from parent with pid ' . $pid);            
+        $self->logger->debug('Process datached from parent with pid ' . $pid);
         exit 0;
     }
 

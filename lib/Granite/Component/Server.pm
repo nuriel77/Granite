@@ -1,4 +1,6 @@
 package Granite::Component::Server;
+use strict;
+use warnings;
 use Socket;
 use Sys::Hostname;
 use POE::Component::SSLify qw( SSLify_Options SSLify_GetCTX SSLify_GetCipher SSLify_GetSocket);
@@ -13,10 +15,10 @@ use POE
   qw( Wheel::SocketFactory Driver::SysRW Filter::Stream Wheel::ReadWrite );
 
 use vars
-  qw( $debug $log $port $granite_key $granite_crt
+  qw( $log $port $granite_key $granite_crt $debug
       $bind $max_clients $client_filters $granite_cacrt
       $granite_verify_client $granite_cipher $granite_crl
-      $client_namespace $host_name );
+      $client_namespace $host_name $disable_ssl );
 
 
 $ENV{GRANITE_CLIENT_CERTIFICATE} = 1 if $ENV{GRANITE_VERIFY_CLIENT};
@@ -24,7 +26,7 @@ $ENV{GRANITE_CLIENT_CERTIFICATE} = 1 if $ENV{GRANITE_VERIFY_CLIENT};
 $port          = 21212;
 $bind          = '127.0.0.1';
 $max_clients   = 10;
-$host_name     = $ENV{GRANITE_HOSTNAME} || hostname();
+$host_name     = $ENV{GRANITE_HOSTNAME} || $CONF::cfg->{server}->{hostname} || hostname();
 $granite_crt    = '/etc/openvpn/easy-rsa/keys/server.crt',;
 $granite_key    = '/etc/openvpn/easy-rsa/keys/server.key';
 $granite_cacrt  = '/etc/openvpn/easy-rsa/keys/ca.crt';
@@ -34,15 +36,17 @@ $granite_crl    = '';
 sub run {
     ($log, $debug) = @_[ ARG0, ARG1 ];
 
-    unless ( $ENV{GRANITE_DISABLE_SSL} ){
+    $disable_ssl = $ENV{GRANITE_DISABLE_SSL} || $CONF::cfg->{server}->{disable_ssl};
+
+    unless ( $disable_ssl ){
         $log->debug('Setting SSLify options');
 
         eval { SSLify_Options( $granite_key, $granite_crt ) };
-        $log->logdie( "SSLify_Options: " . $@ ) if ($@);
+        $log->logcroak( "Error setting SSLify_Options with '$granite_key' and '$granite_crt': "
+                        . $@ . ' Check file permissions.' ) if ($@);
 
         eval { SSLify_Options_NonBlock_ClientCert( SSLify_GetCTX(), $granite_cacrt ); };
-        $log->logdie( "SSLify_Options_NonBlock_ClientCert: " . $@ ) if ($@);
-
+        $log->logcroak( 'Error setting SSLify_Options_NonBlock_ClientCert: ' . $@ ) if ($@);
     }
 
     POE::Session->create(
@@ -68,7 +72,6 @@ sub run {
     );
 
     $log->debug("* Server started at $bind:$port *");
-    $debug && print STDERR "* Server started at $bind:$port *\n";
 
 }
 
@@ -88,15 +91,13 @@ sub _close_delayed {
     delete $client_namespace->{$wheel_id};
 
     $log->debug("[ " . $wheel_id . " ] Client disconnected.");
-    $debug && print STDERR "[ " . $wheel_id . " ] Client disconnected.\n";
 }
 
 sub _client_disconnect {
     my ( $heap, $kernel, $wheel_id ) = @_[ HEAP, KERNEL, ARG0 ];
 
     $log->debug("[ $wheel_id ] At _client_disconnect");
-    $log->debug("[ " . $wheel_id . " ] Client disconnecting (delayed).");
-    $debug && print STDERR "[ " . $wheel_id . " ] Client disconnecting (delayed).\n";
+    $log->info("[ " . $wheel_id . " ] Client disconnecting (delayed).");
 
     $kernel->delay( close_delayed => 1, $wheel_id )
       unless ( $heap->{server}->{$wheel_id}->{disconnecting}++ );
@@ -106,6 +107,7 @@ sub _client_input {
     my ( $heap, $kernel, $input, $wheel_id ) = @_[ HEAP, KERNEL, ARG0, ARG1 ];
 
     chomp($input);
+    $log->debug('At _client_input');
 
     # Assign boolean if can write to socket
     my $canwrite = exists $heap->{server}->{$wheel_id}->{wheel}
@@ -129,8 +131,8 @@ sub _client_accept {
 
     $log->debug('At _client_accept');
 
-    unless ( $ENV{GRANITE_DISABLE_SSL} ){
-        $log->debug('[ ' . $wheel_id .' ] Starting up SSLify on socket');
+    unless ( $disable_ssl ){
+        $log->info('[ ' . $wheel_id .' ] Starting up SSLify on socket');
         eval {
             $socket = Server_SSLify_NonBlock(
                 SSLify_GetCTX(),
@@ -144,7 +146,6 @@ sub _client_accept {
             );
         };
         if ($@) {
-            print STDERR "SSL Failed: " . $@ . "\n";
             $log->error('_client_accept: SSL Failed:' . $@);
             delete $heap->{server}->{$wheel_id}->{wheel};
             return undef;
@@ -158,12 +159,9 @@ sub _client_accept {
         InputEvent => 'client_input'
     );
 
-    my ($remote_port, $addr) =
-        unpack_sockaddr_in( getpeername ( $ENV{GRANITE_DISABLE_SSL} ? $socket : SSLify_GetSocket( $socket ) ) );
-    my $remote_ip = inet_ntoa( $addr );
+    my ( $remote_ip, $remote_port ) = _get_remote_address($socket);
  
-   $log->debug( '[ ' . $io_wheel->ID() . ' ] Remote Addr: ' . $remote_ip . ':' . $remote_port );
-    $debug && print STDERR "[ " . $io_wheel->ID() . " ] Connection from $remote_ip:$remote_port\n";
+    $log->info( '[ ' . $io_wheel->ID() . ' ] Remote Addr: ' . $remote_ip . ':' . $remote_port );
     
     $heap->{server}->{ $io_wheel->ID() }->{remote_ip} = $remote_ip;
     $heap->{server}->{ $io_wheel->ID() }->{remote_port} = $remote_port;
@@ -175,16 +173,17 @@ sub _verify_client {
     my ( $heap, $kernel, $input, $wheel_id, $canwrite ) 
         = @_[ HEAP, KERNEL, ARG0, ARG1, ARG2 ];
 
+    $log->debug('At _verify_client');
     my $socket = $heap->{server}->{$wheel_id}->{socket};
     my $remote_ip = $heap->{server}->{$wheel_id}->{remote_ip};
     my $remote_port = $heap->{server}->{$wheel_id}->{remote_port};
 
     # Check SSL if enabled
-    unless ( $ENV{GRANITE_DISABLE_SSL} ) {
+    unless ( $disable_ssl ) {
 
+        $log->info('Verifying Server_SSLify_NonBlock_SSLDone on socket');
         unless ( Server_SSLify_NonBlock_SSLDone($socket) ) {
             $log->error('[ ' . $wheel_id . ' ] SSL Handshake failed');
-            $debug && print STDERR "[ $wheel_id ] SSL Handshake failed\n";
             $kernel->yield( "disconnect" => $wheel_id );
             return;
         }
@@ -200,7 +199,6 @@ sub _verify_client {
             $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] NoClientCertExists\n" )
                 if $canwrite;
             $log->error("[ " . $wheel_id . " ] NoClientCertExists");
-            $debug && print STDERR "[ " . $wheel_id . " ] NoClientCertExists\n";
             $kernel->yield( "disconnect" => $wheel_id );
             return;
         }
@@ -209,7 +207,6 @@ sub _verify_client {
             $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] ClientCertInvalid\n" )
                 if $canwrite;
             $log->error("[ " . $wheel_id . " ] ClientCertInvalid");
-            $debug && print STDERR "[ " . $wheel_id . " ] ClientCertInvalid\n";
             $kernel->yield( "disconnect" => $wheel_id );
             return;
         }
@@ -218,14 +215,12 @@ sub _verify_client {
             $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] CRL Error\n" )
                 if $canwrite;
             $log->error("[ " . $wheel_id . " ] CRL Error");
-            $debug && print STDERR "[ " . $wheel_id . " ] CRL Error\n";
             $kernel->yield( "disconnect" => $wheel_id );
             return;
         }
-
     }
 
-    $log->debug('[ ' . $wheel_id . " ] Verifying password\n");
+    $log->info('[ ' . $wheel_id . " ] Verifying password\n");
     if ( $input ne 'system'  ){
         $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] Password authentication failure.\n" )
             if $canwrite;
@@ -240,8 +235,7 @@ sub _verify_client {
         registered => time(),
     };
 
-    $log->debug("[ " . $wheel_id . " ] Client authenticated");
-    $debug && print STDERR "[ " . $wheel_id . " ] Client authenticated\n";
+    $log->info("[ " . $wheel_id . " ] Client authenticated");
 
     $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] Authenticated!\n" )
         if $canwrite;
@@ -254,14 +248,32 @@ sub _sanitize_input {
     return $input if $input eq '';
 
     unless ($input =~ /^[a-zA-Z0-9_\-\.,\!\%\$\^\&\(\)\[\]\{\}\+\=\@\?]+$/){
-        $log->debug( '[ ' . $wheel_id . ' ] Client input contains invalid characters, erasing content.' );
+        $log->warn( '[ ' . $wheel_id . ' ] Client input contains invalid characters, erasing content.' );
         $input = '';
     }
     else {
         $log->debug("[ $wheel_id ] Got client input: '" . $input . "'");
-        $debug && print STDERR "[ $wheel_id ] Got client input: '" . $input . "'\n";
     }
     return $input;
 }
+
+sub _get_remote_address {
+    my $socket = shift;
+    my $remote_ip;
+    my ($remote_port, $addr) = ( 'unknown', 'n/a' );
+    eval { 
+        ($remote_port, $addr) =
+            unpack_sockaddr_in( getpeername ( $disable_ssl ? $socket : SSLify_GetSocket( $socket ) ) );
+    };
+    if ( $@ ) {
+        $log->logcluck("Error getting remote peer name: $@");
+    }
+    else {
+        eval { $remote_ip = inet_ntoa( $addr ) };
+        $log->logcluck("Error getting ip address: $@") if $@;
+    }
+    return wantarray ? ( $remote_ip, $remote_port ) : "$remote_ip:$remote_port";
+}
+
 
 1;
