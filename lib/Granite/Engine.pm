@@ -62,12 +62,10 @@ sub _init_components {
 
 sub _init_modules {
 
-    my $scheduler_modules = $CONF::cfg->{modules}->{scheduler};
-    my ($scheduler_name) = (keys %{$scheduler_modules})[0];
-    my $packages = $CONF::cfg->{modules}->{scheduler}->{$scheduler_name};
+    my $scheduler_name = $CONF::cfg->{modules}->{scheduler};
 
-    if ( my $error = init_scheduler_module ( $packages ) ) {
-        $log->logdie("Failed to load dynamic module '" . $scheduler_name . "': $error" );
+    if ( my $error = init_scheduler_module ( $scheduler_name ) ) {
+        $log->logcroak("Failed to load dynamic module '" . $scheduler_name . "': $error" );
     }
     else {
         $log->debug("Loaded module '" . $scheduler_name . "'");

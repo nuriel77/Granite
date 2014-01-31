@@ -3,17 +3,11 @@ use Module::Load;
 use Moose::Role;
 
 sub load_module {
-    my $modules = shift;
+    my $module = shift;
     my $err;
 
-    if ( ref $modules eq 'ARRAY' ){
-        eval { load $modules->[0], $modules->[1] };
-        $err = $@;
-    }
-    else {
-        eval { load $modules };
-        $err = $@;
-    }
+    eval { load $module };
+    $err = $@;
 
     return $err ? $err : undef;
 }
