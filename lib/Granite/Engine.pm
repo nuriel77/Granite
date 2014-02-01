@@ -13,8 +13,13 @@ use Moose;
 use namespace::autoclean;
 use vars qw($log $debug);
 
+has scheduler => ( is => 'rw', isa => 'HashRef', default => sub {{}} );
+has debug     => ( is => 'ro', isa => 'Bool' );
+has logger    => ( is => 'ro', isa => 'Object', required => 1 );
+
 sub init {
-    ( $log, $debug ) = @_;
+    my $self = shift;
+    ( $log, $debug ) = ($self->logger, $self->debug);
 
     set_logger_stdout($log) if $debug;
     $log->debug('At Granite::Engine::init');
@@ -30,12 +35,23 @@ sub init {
         );
     }
 
-    &_init_modules();
+    $self->_init_modules();
 
     # Start main session
     POE::Session->create(
         inline_states => {
-            _start       => \&_init_components,
+            _start       => sub {
+                my ($heap, $kernel) = @_[ HEAP, KERNEL ];
+
+                # Queue watcher
+                $kernel->yield("watch_queue", $log, $debug, $self->scheduler );
+
+                # Server
+                unless ( $ENV{GRANITE_NO_TCP} ) {
+                    $log->debug('Initializing Granite::Component::Server');
+                    $kernel->yield("init_server", $log, $debug );
+                }
+            },
             init_server  => \&Granite::Component::Server::run,
             watch_queue  => \&Granite::Component::Scheduler::QueueWatcher::run,
             _stop        => \&_terminate,
@@ -43,37 +59,7 @@ sub init {
     );
 
     $log->info('Starting up engine');
-
     $poe_kernel->run();
-
-
-}
-
-sub _init_components {
-    my ($heap, $kernel) = @_[ HEAP, KERNEL ];
-
-    # Queue watcher
-    $log->debug('Initializing Granite::Component::QueueWatcher');
-    $kernel->yield("watch_queue");
-
-    # Server
-    unless ( $ENV{GRANITE_NO_TCP} ) {
-        $log->debug('Initializing Granite::Component::Server');
-        $kernel->yield("init_server", $log, $debug );
-    }
-
-}
-
-sub _init_modules {
-
-    my $scheduler_name = $CONF::cfg->{modules}->{scheduler};
-
-    if ( my $error = init_scheduler_module ( $scheduler_name ) ) {
-        $log->logcroak("Failed to load dynamic module '" . $scheduler_name . "': $error" );
-    }
-    else {
-        $log->debug("Loaded module '" . $scheduler_name . "'");
-    }
 
 }
 
@@ -82,6 +68,20 @@ sub _terminate {
     $log->debug('Terminating...');
     delete $heap->{server};
     Granite->QUIT;
+}
+
+sub _init_modules {
+    my $self = shift;
+
+    my $scheduler = $CONF::cfg->{modules}->{scheduler};
+    if ( my $error = init_scheduler_module ( $scheduler ) ) {
+        $log->logcroak("Failed to load dynamic module '" . $scheduler . "': $error" );
+    }
+    else {
+        $self->scheduler->{$scheduler} = $scheduler->new( name => $scheduler );
+        $log->debug("Loaded module '" . $scheduler . "'");
+    }
+
 }
 
 __PACKAGE__->meta->make_immutable(inline_constructor => 0);

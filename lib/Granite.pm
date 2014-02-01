@@ -29,7 +29,7 @@ sub init {
     $log = Log::Log4perl->get_logger(__PACKAGE__);
 
     # Init engine
-    Granite::Engine::init( $log, $debug );
+    Granite::Engine->new( logger => $log, debug => $debug )->init;
     exit;
 }
 
