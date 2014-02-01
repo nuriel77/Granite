@@ -5,48 +5,64 @@ use Socket;
 use Sys::Hostname;
 use POE::Component::SSLify qw( SSLify_Options SSLify_GetCTX SSLify_GetCipher SSLify_GetSocket);
 use POE::Component::SSLify::NonBlock qw(
-  Server_SSLify_NonBlock
-  SSLify_Options_NonBlock_ClientCert
-  Server_SSLify_NonBlock_ClientCertVerifyAgainstCRL
-  Server_SSLify_NonBlock_ClientCertificateExists
-  Server_SSLify_NonBlock_ClientCertIsValid
-  Server_SSLify_NonBlock_SSLDone );
+    Server_SSLify_NonBlock
+    SSLify_Options_NonBlock_ClientCert
+    Server_SSLify_NonBlock_ClientCertVerifyAgainstCRL
+    Server_SSLify_NonBlock_ClientCertificateExists
+    Server_SSLify_NonBlock_ClientCertIsValid
+    Server_SSLify_NonBlock_SSLDone );
 use POE
-  qw( Wheel::SocketFactory Driver::SysRW Filter::Stream Wheel::ReadWrite );
+    qw( Wheel::SocketFactory Driver::SysRW Filter::Stream Wheel::ReadWrite );
+use Moose;
 
 use vars
-  qw( $log $port $granite_key $granite_crt $debug
-      $bind $max_clients $client_filters $granite_cacrt
-      $granite_verify_client $granite_cipher $granite_crl
-      $client_namespace $host_name $disable_ssl );
+    qw( $log $port $granite_key $granite_crt $debug
+        $bind $max_clients $client_filters $granite_cacrt
+        $granite_verify_client $granite_cipher $granite_crl
+        $client_namespace $host_name $disable_ssl );
 
-
-$ENV{GRANITE_CLIENT_CERTIFICATE} = 1 if $ENV{GRANITE_VERIFY_CLIENT};
-
-$port          = 21212;
-$bind          = '127.0.0.1';
-$max_clients   = 10;
-$host_name     = $ENV{GRANITE_HOSTNAME} || $CONF::cfg->{server}->{hostname} || hostname();
-$granite_crt    = '/etc/openvpn/easy-rsa/keys/server.crt',;
-$granite_key    = '/etc/openvpn/easy-rsa/keys/server.key';
-$granite_cacrt  = '/etc/openvpn/easy-rsa/keys/ca.crt';
-$granite_cipher = 'DHE-RSA-AES256-GCM-SHA384:AES256-SHA';
-$granite_crl    = '';
+before 'run' => sub {
+    $port           = $CONF::cfg->{server}->{port}              || 21212;
+    $bind           = $CONF::cfg->{server}->{bind}              || '127.0.0.1';
+    $max_clients    = $CONF::cfg->{server}->{max_clients}       || 10;
+    $host_name      = $CONF::cfg->{server}->{hostname}          || hostname();
+    $granite_crt    = $CONF::cfg->{server}->{cert}              || undef;
+    $granite_key    = $CONF::cfg->{server}->{key}               || undef;
+    $granite_cacrt  = $CONF::cfg->{server}->{cacert}            || undef;
+    $granite_crl    = $CONF::cfg->{server}->{crl}               || undef;
+    $granite_cipher = 'DHE-RSA-AES256-GCM-SHA384:AES256-SHA';
+    $ENV{GRANITE_CLIENT_CERTIFICATE} = 1 if $ENV{GRANITE_VERIFY_CLIENT};
+    $CONF::cfg->{server}->{client_certificate} ||= $CONF::cfg->{server}->{verify_client}; 
+};
 
 sub run {
     ($log, $debug) = @_[ ARG0, ARG1 ];
 
     $disable_ssl = $ENV{GRANITE_DISABLE_SSL} || $CONF::cfg->{server}->{disable_ssl};
+    
+    $log->logcroak("Missing certificate file definition")   if !$disable_ssl && !$granite_crt;
+    $log->logcroak("Missing key file definition")           if !$disable_ssl && !$granite_key;
 
     unless ( $disable_ssl ){
-        $log->debug('Setting SSLify options');
+        $log->debug('Setting SSLify options') if $debug;
+
+        for ( $granite_key, $granite_crt ){
+            $log->logcroak("Cannot find '$_'. Verify existance and permissions.") unless -f $_;
+        }
+
+        if ( $CONF::cfg->{server}->{client_certificate}
+            && ( !$granite_cacrt or ! -f $granite_cacrt ) 
+        ){
+            $log->logcroak("Missing CA certificate. Verify existance and permissions.");
+        }
 
         eval { SSLify_Options( $granite_key, $granite_crt ) };
         $log->logcroak( "Error setting SSLify_Options with '$granite_key' and '$granite_crt': "
                         . $@ . ' Check file permissions.' ) if ($@);
 
-        eval { SSLify_Options_NonBlock_ClientCert( SSLify_GetCTX(), $granite_cacrt ); };
+        eval { SSLify_Options_NonBlock_ClientCert( SSLify_GetCTX(), $granite_cacrt ); } if $granite_cacrt;
         $log->logcroak( 'Error setting SSLify_Options_NonBlock_ClientCert: ' . $@ ) if ($@);
+   
     }
 
     POE::Session->create(
@@ -72,7 +88,7 @@ sub run {
         }
     );
 
-    $log->debug("* Server started at $bind:$port *");
+    $log->info("* Server started at $bind:$port *");
 
 }
 
@@ -98,7 +114,7 @@ sub _client_error {
 sub _close_delayed {
     my ( $kernel, $heap, $wheel_id ) = @_[ KERNEL, HEAP, ARG0 ];
 
-    $log->debug("[ $wheel_id ] At _close_delayed");
+    $log->debug("[ $wheel_id ] At _close_delayed") if $debug;
     delete $heap->{server}->{$wheel_id}->{wheel};
     delete $heap->{server}->{$wheel_id}->{socket};
     delete $client_namespace->{$wheel_id};
@@ -109,7 +125,7 @@ sub _close_delayed {
 sub _client_disconnect {
     my ( $heap, $kernel, $wheel_id ) = @_[ HEAP, KERNEL, ARG0 ];
 
-    $log->debug("[ $wheel_id ] At _client_disconnect");
+    $log->debug("[ $wheel_id ] At _client_disconnect") if $debug;
     $log->info("[ " . $wheel_id . " ] Client disconnecting (delayed).");
 
     $kernel->delay( close_delayed => 1, $wheel_id )
@@ -120,7 +136,7 @@ sub _client_input {
     my ( $heap, $kernel, $input, $wheel_id ) = @_[ HEAP, KERNEL, ARG0, ARG1 ];
 
     chomp($input);
-    $log->debug('At _client_input');
+    $log->debug('At _client_input') if $debug;
 
     # Assign boolean if can write to socket
     my $canwrite = exists $heap->{server}->{$wheel_id}->{wheel}
@@ -142,7 +158,7 @@ sub _client_input {
 sub _client_accept {
     my ( $heap, $kernel, $socket, $wheel_id ) = @_[ HEAP, KERNEL, ARG0, ARG1 ];
 
-    $log->debug('At _client_accept');
+    $log->debug('At _client_accept') if $debug;
 
     unless ( $disable_ssl ){
         $log->info('[ ' . $wheel_id .' ] Starting up SSLify on socket');
@@ -151,8 +167,8 @@ sub _client_accept {
                 SSLify_GetCTX(),
                 $socket,
                 {
-                    clientcertrequest    => $ENV{GRANITE_CLIENT_CERTIFICATE},
-                    noblockbadclientcert => $ENV{GRANITE_VERIFY_CLIENT},
+                    clientcertrequest    => $ENV{GRANITE_REQUEST_CLIENT_CERTIFICATE} || $CONF::cfg->{server}->{client_certificate},
+                    noblockbadclientcert => $ENV{GRANITE_VERIFY_CLIENT} || $CONF::cfg->{server}->{verify_client},
                     getserial            => $granite_crl ? 1 : 0,
                     debug                => $debug
                 }
@@ -187,7 +203,7 @@ sub _verify_client {
     my ( $heap, $kernel, $input, $wheel_id, $canwrite ) 
         = @_[ HEAP, KERNEL, ARG0, ARG1, ARG2 ];
 
-    $log->debug('At _verify_client');
+    $log->debug('At _verify_client') if $debug;
     my $socket = $heap->{server}->{$wheel_id}->{socket};
     my $remote_ip = $heap->{server}->{$wheel_id}->{remote_ip};
     my $remote_port = $heap->{server}->{$wheel_id}->{remote_port};
@@ -204,9 +220,10 @@ sub _verify_client {
 
         my $ctx = SSLify_GetCTX( $socket ); 
 
-        $log->debug('[ '. $wheel_id  .' ] Have global CTX: ' . SSLify_GetCTX() );
-        $log->debug('[ '. $wheel_id  .' ] Got client CTX: ' . $ctx);
-        $log->debug('[ '. $wheel_id  .' ] Got client cipher: ' . SSLify_GetCipher($socket) );
+        $log->debug('[ '. $wheel_id  .' ] Have global CTX: ' . SSLify_GetCTX()
+                  . ', client CTX: ' . $ctx
+                  . ', client cipher: ' . SSLify_GetCipher($socket)
+        ) if $debug;
 
         # Check certificate provided by client
         if ( $ENV{GRANITE_CLIENT_CERTIFICATE} and !( Server_SSLify_NonBlock_ClientCertificateExists($socket) ) ) {
@@ -266,7 +283,7 @@ sub _sanitize_input {
         $input = '';
     }
     else {
-        $log->debug("[ $wheel_id ] Got client input: '" . $input . "'");
+        $log->debug("[ $wheel_id ] Got client input: '" . $input . "'") if $debug;
     }
     return $input;
 }

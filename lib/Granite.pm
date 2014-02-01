@@ -35,7 +35,7 @@ sub init {
 
 sub QUIT
 {
-    $log->debug("Termination signal detected\n");
+    $log->info("Termination signal detected\n");
     exit 1;
 }
 

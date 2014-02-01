@@ -3,17 +3,17 @@ use strict;
 use warnings;
 use Granite::Engine::Daemonize;
 use Granite::Component::Server;
-use Granite::Modules::Schedulers;
 use Granite::Component::Scheduler::QueueWatcher;
 use Cwd 'getcwd';
 use POE;
 use Moose;
-    with 'Granite::Modules::Schedulers', 'Granite::Engine::Logger';
+    with 'Granite::Engine::Logger',
+         'Granite::Utils::ModuleLoader';
 
 use namespace::autoclean;
 use vars qw($log $debug);
 
-has scheduler => ( is => 'rw', isa => 'HashRef', default => sub {{}} );
+has modules   => ( is => 'rw', isa => 'HashRef', default => sub {{}} );
 has debug     => ( is => 'ro', isa => 'Bool' );
 has logger    => ( is => 'ro', isa => 'Object', required => 1 );
 
@@ -22,12 +22,13 @@ sub init {
     ( $log, $debug ) = ($self->logger, $self->debug);
 
     set_logger_stdout($log) if $debug;
-    $log->debug('At Granite::Engine::init');
+    $log->debug('At Granite::Engine::init') if $debug;
 
     if ( !$ENV{GRANITE_FOREGROUND} && $CONF::cfg->{main}->{daemonize} ){
         # Daemonize
         my $daemon = Granite::Engine::Daemonize->new(
             logger   => $log,
+            debug    => $debug,
             workdir  => $ENV{GRANITE_WORK_DIR} || getcwd(),
             pid_file => $ENV{GRANITE_PID_FILE}
                 || $CONF::cfg->{main}->{pid_file}
@@ -35,6 +36,7 @@ sub init {
         );
     }
 
+    # Load modules
     $self->_init_modules();
 
     # Start main session
@@ -44,11 +46,11 @@ sub init {
                 my ($heap, $kernel) = @_[ HEAP, KERNEL ];
 
                 # Queue watcher
-                $kernel->yield("watch_queue", $log, $debug, $self->scheduler );
+                $kernel->yield("watch_queue", $log, $debug, $self->modules->{scheduler} );
 
                 # Server
                 unless ( $ENV{GRANITE_NO_TCP} ) {
-                    $log->debug('Initializing Granite::Component::Server');
+                    $log->debug('Initializing Granite::Component::Server') if $debug;
                     $kernel->yield("init_server", $log, $debug );
                 }
             },
@@ -65,7 +67,7 @@ sub init {
 
 sub _terminate {
     my ($heap, $kernel) = @_[ HEAP, KERNEL ];
-    $log->debug('Terminating...');
+    $log->info('Terminating...');
     delete $heap->{server};
     Granite->QUIT;
 }
@@ -73,15 +75,17 @@ sub _terminate {
 sub _init_modules {
     my $self = shift;
 
-    my $scheduler = $CONF::cfg->{modules}->{scheduler};
-    if ( my $error = init_scheduler_module ( $scheduler ) ) {
-        $log->logcroak("Failed to load dynamic module '" . $scheduler . "': $error" );
+    for my $module ( keys %{$CONF::cfg->{modules}} ){
+        my $package = 'Granite::Modules::' . ucfirst($module)
+                    . '::' . $CONF::cfg->{modules}->{$module};
+        if ( my $error = load_module( $package ) ){
+            $log->logcroak("Failed to load module '" . $package . "': $error" );
+        }
+        else {
+            $self->modules->{$module}->{$package} = $package->new( name => $package );
+            $log->debug("Loaded module '" . $package . "'") if $debug;
+        }
     }
-    else {
-        $self->scheduler->{$scheduler} = $scheduler->new( name => $scheduler );
-        $log->debug("Loaded module '" . $scheduler . "'");
-    }
-
 }
 
 __PACKAGE__->meta->make_immutable(inline_constructor => 0);
