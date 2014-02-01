@@ -75,14 +75,24 @@ sub _terminate {
 sub _init_modules {
     my $self = shift;
 
+#modules:
+#  scheduler:
+#    name: Slurm
+#    meta:
+#      - '/opt/slurm/etc/slurm.conf'
+
     for my $module ( keys %{$CONF::cfg->{modules}} ){
         my $package = 'Granite::Modules::' . ucfirst($module)
-                    . '::' . $CONF::cfg->{modules}->{$module};
+                    . '::' . $CONF::cfg->{modules}->{$module}->{name};
         if ( my $error = load_module( $package ) ){
             $log->logcroak("Failed to load module '" . $package . "': $error" );
         }
         else {
-            $self->modules->{$module}->{$package} = $package->new( name => $package );
+            $self->modules->{$module}->{$package} =
+                $package->new(
+                    name => $package,
+                    metadata => $CONF::cfg->{modules}->{$module}->{metadata}
+                );
             $log->debug("Loaded module '" . $package . "'") if $debug;
         }
     }
