@@ -5,7 +5,7 @@ use Moose::Role;
 sub set_logger_stdout {
 
     my $layout =
-        Log::Log4perl::Layout::PatternLayout->new("[%r] %p %F %L %m%n");
+        Log::Log4perl::Layout::PatternLayout->new( $CONF::cfg->{main}->{debug_layout_pattern} || "(%r) %p %F %L %m%n");
 
     my $stdout_appender =
         Log::Log4perl::Appender->new(
