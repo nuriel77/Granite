@@ -171,7 +171,7 @@ sub _client_accept {
                     clientcertrequest    => $ENV{GRANITE_REQUEST_CLIENT_CERTIFICATE} || $CONF::cfg->{server}->{client_certificate},
                     noblockbadclientcert => $ENV{GRANITE_VERIFY_CLIENT} || $CONF::cfg->{server}->{verify_client},
                     getserial            => $granite_crl ? 1 : 0,
-                    debug                => $debug
+                    debug                => 0 #$debug
                 }
             );
         };
@@ -242,14 +242,16 @@ sub _verify_client {
             $kernel->yield( "disconnect" => $wheel_id );
             return;
         }
+	# TODO: Patch Net::SSLeay or try dump certificate and verify via openssl class
         # check certificate against CRL
-        elsif ( $granite_crl and !( Server_SSLify_NonBlock_ClientCertVerifyAgainstCRL( $socket, $granite_cacrt ) ) ) {
-            $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] CRL Error\n" )
-                if $canwrite;
-            $log->error("[ " . $wheel_id . " ] CRL Error");
-            $kernel->yield( "disconnect" => $wheel_id );
-            return;
-        }
+        #elsif ( $granite_crl and !( Server_SSLify_NonBlock_ClientCertVerifyAgainstCRL( $socket, $granite_crl ) ) ) {
+        #    $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] CRL Error\n" )
+        #        if $canwrite;
+        #    $log->error("[ " . $wheel_id . " ] CRL Error");
+        #    $kernel->yield( "disconnect" => $wheel_id );
+        #    return;
+        #}
+	warn "" . Server_SSLify_NonBlock_GetClientCertificateIDs($socket) . "\n";
     }
 
     $log->info('[ ' . $wheel_id . " ] Verifying password\n");
