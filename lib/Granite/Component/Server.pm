@@ -87,11 +87,12 @@ sub _client_error {
     my ($errnum, $errstr, $wheel_id) = @_[ARG1..ARG3];
     if ( $errnum > 0 ){
         $log->warn("[ $wheel_id ] client_error: ($errnum) $errstr");
-        delete $heap->{server}->{$wheel_id}->{wheel};
     }
     else {
         $log->info("[ $wheel_id ] Client disconnected");
     }
+    delete $heap->{server}->{$wheel_id}->{wheel};
+    delete $_[HEAP]{wheels}{$wheel_id};
 }
 
 sub _close_delayed {
