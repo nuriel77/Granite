@@ -1,10 +1,11 @@
-package Granite::Modules::Schedulers::Slurm;
+package Granite::Modules::Scheduler::Slurm;
 use strict;
 use warnings;
 use Slurm;
 use Slurm qw(:constant);
 use Carp 'confess';
 use Moose;
+    with 'Granite::Modules::Scheduler';
 
 sub get_queue {
     my $slurm_conf = '/opt/slurm/etc/slurm.conf';

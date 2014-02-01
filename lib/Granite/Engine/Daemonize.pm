@@ -9,6 +9,7 @@ use Moose;
 use namespace::autoclean;
 
 has 'logger'   => ( is => 'ro', isa => 'Object', required => 1 );
+has 'debug'    => ( is => 'rw', isa => 'Bool' );
 has 'pid_file' => ( is => 'ro', isa => 'Str', required => 1 );
 has 'workdir'  => ( is => 'ro', isa => 'Str', required => 1 );
 
@@ -19,7 +20,8 @@ around 'new' => sub {
     my $class = shift;
     my $self = $class->$orig(@_);
 
-    $self->logger->debug('At Granite::Engine::Daemonize');
+    
+    $self->logger->debug('At Granite::Engine::Daemonize') if $self->debug;
 
     my $pid_file = $self->pid_file;
 
@@ -42,7 +44,7 @@ around 'new' => sub {
         unless ( write_file( $pid_file, { binmode => ':raw', err_mode => 'carp'}, $pid ) ){
             $self->logger->logdie( "Cannot write pid to '$pid_file'" );
         }
-        $self->logger->debug('Process datached from parent with pid ' . $pid);
+        $self->logger->info('Process datached from parent with pid ' . $pid) if $self->debug;
         exit 0;
     }
 
