@@ -3,9 +3,11 @@ use strict;
 use warnings;
 use Granite::Engine::Daemonize;
 use Granite::Component::Server;
+use Granite::Component::Scheduler::Nodes;
 use Granite::Component::Scheduler::QueueWatcher;
 use Cwd 'getcwd';
 use POE;
+use Data::Dumper::Concise;
 use Moose;
     with 'Granite::Engine::Logger',
          'Granite::Utils::ModuleLoader';
@@ -39,6 +41,25 @@ sub init {
     # Load modules
     $self->_init_modules();
 
+
+#
+#   Temporarily here:
+#
+    my $scheduler_nodes =
+        Granite::Component::Scheduler::Nodes->new(
+            scheduler => $self->modules->{scheduler},
+            logger => $log,
+            debug => $debug );
+
+    my $node_array = $scheduler_nodes->list_nodes;
+    my @visible_nodes = grep defined, @{$node_array};
+
+    if ( $debug ){
+        $log->debug( "Defined Node: " . Dumper $_ ) for @visible_nodes;
+    }
+
+
+
     # Start main session
     POE::Session->create(
         inline_states => {
@@ -49,14 +70,14 @@ sub init {
                 $kernel->yield("watch_queue", $log, $debug, $self->modules->{scheduler} );
 
                 # Server
-                unless ( $ENV{GRANITE_NO_TCP} ) {
+                if ( !$ENV{GRANITE_NO_TCP} && !$CONF::cfg->{server}->{disable} ){
                     $log->debug('Initializing Granite::Component::Server') if $debug;
                     $kernel->yield("init_server", $log, $debug );
                 }
             },
-            init_server  => \&Granite::Component::Server::run,
-            watch_queue  => \&Granite::Component::Scheduler::QueueWatcher::run,
-            _stop        => \&_terminate,
+            init_server     => \&Granite::Component::Server::run,
+            watch_queue     => \&Granite::Component::Scheduler::QueueWatcher::run,
+            _stop           => \&_terminate,
         }
     );
 

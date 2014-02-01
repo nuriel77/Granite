@@ -8,17 +8,15 @@ use Moose;
     with 'Granite::Modules::Scheduler';
 use namespace::autoclean;
 
-has slurm => ( is => 'rw', isa => 'Object' );
-
 around 'new' => sub {
     my $orig = shift;
     my $class = shift;
     my $self = $class->$orig(@_);
 
     my $slurm_conf = $self->metadata->{config_file};
-    $self->slurm ( Slurm::new($slurm_conf) );
-    confess "Slurm error: " . $self->slurm->strerror() . "\n"
-        if $self->slurm->get_errno();
+    $self->scheduler( Slurm::new($slurm_conf) );
+    confess "Slurm error: " . $self->scheduler->strerror() . "\n"
+        if $self->scheduler->get_errno();
 
     return $self;    
 };
@@ -27,7 +25,7 @@ sub get_queue {
     my $self = shift;
     my $reservation_queue = $self->metadata->{reservation_queue};
 
-    my $sq = $self->slurm->load_jobs();
+    my $sq = $self->scheduler->load_jobs();
 
     my $output;
     for (@{$sq->{job_array}}){
@@ -38,7 +36,13 @@ sub get_queue {
 }
 
 sub get_nodes {
-    
+    my $self = shift;
+    my $nodes = $self->scheduler->load_node;
+
+    die "Slurm error: " . $self->scheduler->strerror() . "\n"
+        if $self->scheduler->get_errno();
+
+    return $nodes->{node_array};
 }
 
 __PACKAGE__->meta->make_immutable(inline_constructor => 0);

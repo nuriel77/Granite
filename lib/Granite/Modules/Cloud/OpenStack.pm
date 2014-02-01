@@ -5,7 +5,7 @@ use warnings;
 use Moose;
 #    with 'Granite::Modules::Cloud';
 
-sub get_nodes {
+sub get_instances {
     1;
 }
 
