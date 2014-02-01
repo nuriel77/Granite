@@ -1,3 +1,4 @@
 test.pl
-server.*
+conf/ssl/
 conf/granite.conf
+conf/easy-rsa

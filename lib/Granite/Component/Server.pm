@@ -2,6 +2,7 @@ package Granite::Component::Server;
 use strict;
 use warnings;
 use Socket;
+use Cwd 'getcwd';
 use Sys::Hostname;
 use POE::Component::SSLify qw( SSLify_Options SSLify_GetCTX SSLify_GetCipher SSLify_GetSocket);
 use POE::Component::SSLify::NonBlock qw(
@@ -22,15 +23,15 @@ use vars
         $client_namespace $host_name $disable_ssl );
 
 before 'run' => sub {
-    $port           = $CONF::cfg->{server}->{port}              || 21212;
-    $bind           = $CONF::cfg->{server}->{bind}              || '127.0.0.1';
-    $max_clients    = $CONF::cfg->{server}->{max_clients}       || 10;
-    $host_name      = $CONF::cfg->{server}->{hostname}          || hostname();
-    $granite_crt    = $CONF::cfg->{server}->{cert}              || undef;
-    $granite_key    = $CONF::cfg->{server}->{key}               || undef;
-    $granite_cacrt  = $CONF::cfg->{server}->{cacert}            || undef;
-    $granite_crl    = $CONF::cfg->{server}->{crl}               || undef;
-    $granite_cipher = 'DHE-RSA-AES256-GCM-SHA384:AES256-SHA';
+    $port            = $CONF::cfg->{server}->{port}              || 21212;
+    $bind            = $CONF::cfg->{server}->{bind}              || '127.0.0.1';
+    $max_clients     = $CONF::cfg->{server}->{max_clients}       || 10;
+    $host_name       = $CONF::cfg->{server}->{hostname}          || hostname();
+    $granite_crt     = getcwd . '/' . $CONF::cfg->{server}->{cert}              || undef;
+    $granite_key     = getcwd . '/' . $CONF::cfg->{server}->{key}               || undef;
+    $granite_cacrt   = getcwd . '/' . $CONF::cfg->{server}->{cacert}            || undef;
+    $granite_crl     = getcwd . '/' . $CONF::cfg->{server}->{crl}               || undef;
+    $granite_cipher  = 'DHE-RSA-AES256-GCM-SHA384:AES256-SHA';
     $ENV{GRANITE_CLIENT_CERTIFICATE} = 1 if $ENV{GRANITE_VERIFY_CLIENT};
     $CONF::cfg->{server}->{client_certificate} ||= $CONF::cfg->{server}->{verify_client}; 
 };
