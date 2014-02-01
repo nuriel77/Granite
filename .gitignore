@@ -1,2 +1,3 @@
 test.pl
-
+server.*
+conf/granite.conf
