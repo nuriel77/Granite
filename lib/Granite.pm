@@ -12,13 +12,13 @@ our $VERSION = 1.0;
 
 sub init {
 
-    $debug = $::debug || 0;
-
     $SIG{INT} = \&QUIT;
 
     # Load config to $CONF::cfg (global)
     my $config_file = $ENV{GRANITE_CONFIG} || './conf/granite.conf';
     Granite::Utils::ConfigLoader->load_app_config($config_file);
+
+    $debug = $CONF::cfg->{main}->{debug} || $::debug || 0;
 
     # Load log config
     confess "Failed to load configuration\n"

@@ -23,7 +23,6 @@ sub init {
     my $self = shift;
     ( $log, $debug ) = ($self->logger, $self->debug);
 
-    set_logger_stdout($log) if $debug;
     $log->debug('At Granite::Engine::init') if $debug;
 
     if ( !$ENV{GRANITE_FOREGROUND} && $CONF::cfg->{main}->{daemonize} ){
@@ -36,6 +35,9 @@ sub init {
                 || $CONF::cfg->{main}->{pid_file}
                 || '/var/run/granite/granite.pid'
         );
+    }
+    else {
+        set_logger_stdout($log) if $debug;
     }
 
     # Load modules
