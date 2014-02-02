@@ -232,8 +232,7 @@ sub _sanitize_input {
         $input = '';
     }
     else {
-        $log->debug('[ '. $sessionId . ' ]->(' . $wheel_id . ") Got client input: '" . $input . "'")
-            if $debug;
+        $log->info('[ '. $sessionId . ' ]->(' . $wheel_id . ") Got client input: '" . $input . "'");
     }
     return $input;
 }
