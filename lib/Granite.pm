@@ -6,6 +6,7 @@ use Carp 'confess';
 use Log::Log4perl qw(:easy);
 use Granite::Engine;
 use Granite::Utils::ConfigLoader;
+
 use vars qw( $cfg $debug $log $log_config );
 
 our $VERSION = 1.0;
