@@ -4,6 +4,8 @@ use warnings;
 use Socket;
 use Cwd 'getcwd';
 use Sys::Hostname;
+use Moose;
+use namespace::autoclean;
 use POE::Component::SSLify qw( SSLify_Options SSLify_GetCTX SSLify_GetCipher SSLify_GetSocket);
 use POE::Component::SSLify::NonBlock qw(
     Server_SSLify_NonBlock
@@ -14,13 +16,12 @@ use POE::Component::SSLify::NonBlock qw(
     Server_SSLify_NonBlock_SSLDone );
 use POE
     qw( Wheel::SocketFactory Driver::SysRW Filter::Stream Wheel::ReadWrite );
-use Moose;
 
 use vars
     qw( $log $port $granite_key $granite_crt $debug
         $bind $max_clients $client_filters $granite_cacrt
         $granite_verify_client $granite_cipher $granite_crl
-        $client_namespace $host_name $disable_ssl );
+        $client_namespace $host_name $disable_ssl $unix_socket );
 
 before 'run' => sub {
     $port            = $Granite::cfg->{server}->{port}              || 21212;
@@ -31,6 +32,8 @@ before 'run' => sub {
     $granite_key     = $Granite::cfg->{server}->{key}    ? getcwd . '/' . $Granite::cfg->{server}->{key}    : undef;
     $granite_cacrt   = $Granite::cfg->{server}->{cacert} ? getcwd . '/' . $Granite::cfg->{server}->{cacert} : undef;
     $granite_crl     = $Granite::cfg->{server}->{crl}    ? getcwd . '/' . $Granite::cfg->{server}->{crl}    : undef;
+    $unix_socket     = $Granite::cfg->{server}->{unix_socket} || undef;
+
     $granite_cipher  = 'DHE-RSA-AES256-GCM-SHA384:AES256-SHA';
     $ENV{GRANITE_CLIENT_CERTIFICATE} = 1 if $ENV{GRANITE_VERIFY_CLIENT};
     $Granite::cfg->{server}->{client_certificate} ||= $Granite::cfg->{server}->{verify_client}; 
@@ -43,7 +46,8 @@ sub run {
         if $debug;
 
     $disable_ssl = $ENV{GRANITE_DISABLE_SSL} || $Granite::cfg->{server}->{disable_ssl};
-    
+
+    $log->logwarn('[ ' . $_[SESSION]->ID() . ' ] WARNING: Both unix socket and tcp parameters are configured. Unix socket takes precedence');    
     $log->logcroak("Missing certificate file definition")   if !$disable_ssl && !$granite_crt;
     $log->logcroak("Missing key file definition")           if !$disable_ssl && !$granite_key;
 
@@ -52,13 +56,16 @@ sub run {
         _sslify_options();
     }
 
+    unlink $unix_socket if $unix_socket && -e $unix_socket;
+
     my $session = POE::Session->create(
         inline_states => {
             _start => sub {
                 my ( $heap, $kernel ) = @_[ HEAP, KERNEL ];
                 $heap->{server_wheel} = POE::Wheel::SocketFactory->new(
-                    BindAddress  => $bind,
-                    BindPort     => $port,
+                    SocketDomain => $unix_socket ? PF_UNIX : AF_INET,
+                    BindAddress  => $unix_socket || $bind,
+                    BindPort     => ( $unix_socket ? undef : $port ),
                     ListenQueue  => $max_clients,
                     Reuse        => 'yes',
                     SuccessEvent => 'client_accept',
@@ -75,7 +82,12 @@ sub run {
         }
     );
 
-    $log->info('[ ' . $_[SESSION]->ID() .  " ] Server started at $bind:$port with session ID: " . $session->ID() );
+    if ( $unix_socket ){ 
+        $log->info('[ ' . $_[SESSION]->ID() .  " ] Server started at socket '$unix_socket' with session ID: " . $session->ID() );
+    }
+    else {
+        $log->info('[ ' . $_[SESSION]->ID() .  " ] Server started at $bind:$port with session ID: " . $session->ID() );
+    }
 
 }
 
@@ -147,7 +159,7 @@ sub _client_accept {
 
     $log->info('[ ' . $_[SESSION]->ID() .' ] New connection received');
 
-    unless ( $disable_ssl ){
+    unless ( $disable_ssl or $unix_socket ){
         $log->info('[ ' . $_[SESSION]->ID() .' ] Starting up SSLify on socket');
         eval {
             $socket = Server_SSLify_NonBlock(
@@ -176,12 +188,13 @@ sub _client_accept {
         ErrorEvent => 'client_error'
     );
 
-    my ( $remote_ip, $remote_port ) = _get_remote_address($socket, $_[SESSION]->ID(), $io_wheel->ID());
- 
-    $log->info( '[ ' . $_[SESSION]->ID() . ' ]->(' . $io_wheel->ID() . ') Remote Addr: ' . $remote_ip . ':' . $remote_port );
-    
-    $heap->{server}->{ $io_wheel->ID() }->{remote_ip} = $remote_ip;
-    $heap->{server}->{ $io_wheel->ID() }->{remote_port} = $remote_port;
+    unless ( $unix_socket ) {
+        my ( $remote_ip, $remote_port ) = _get_remote_address($socket, $_[SESSION]->ID(), $io_wheel->ID()); 
+        $heap->{server}->{ $io_wheel->ID() }->{remote_ip} = $remote_ip;
+        $heap->{server}->{ $io_wheel->ID() }->{remote_port} = $remote_port;
+        $log->info( '[ ' . $_[SESSION]->ID() . ' ]->(' . $io_wheel->ID() . ') Remote Addr: ' . $remote_ip . ':' . $remote_port );    
+    }
+
     $heap->{server}->{ $io_wheel->ID() }->{wheel}  = $io_wheel;
     $heap->{server}->{ $io_wheel->ID() }->{socket} = $socket;
 }
@@ -192,12 +205,16 @@ sub _verify_client {
 
     $log->debug('[ ' . $_[SESSION]->ID() . " ]->($wheel_id) At _verify_client") if $debug;
     my $socket = $heap->{server}->{$wheel_id}->{socket};
-    my $remote_ip = $heap->{server}->{$wheel_id}->{remote_ip};
-    my $remote_port = $heap->{server}->{$wheel_id}->{remote_port};
+    my ( $remote_ip, $remote_port );
+    
+    unless ( $unix_socket ){
+        $remote_ip = $heap->{server}->{$wheel_id}->{remote_ip};
+        $remote_port = $heap->{server}->{$wheel_id}->{remote_port};
 
-    # Check SSL if enabled
-    unless ( $disable_ssl ) {
-        _verify_client_ssl($wheel_id, $socket, $canwrite, $_[SESSION]->ID() );
+        # Check SSL if enabled
+        unless ( $disable_ssl ) {
+            _verify_client_ssl($wheel_id, $socket, $canwrite, $_[SESSION]->ID() );
+        }
     }
 
     $log->info('[ ' . $_[SESSION]->ID() . " ]->($wheel_id) Verifying password\n");
@@ -209,11 +226,12 @@ sub _verify_client {
     }
 
     # Register client
-    $client_namespace->{$wheel_id} = {
-        remote_ip => $remote_ip,
-        remote_ip => $remote_port,
-        registered => time(),
-    };
+    $client_namespace->{$wheel_id} = $unix_socket
+        ? { registered => time() }
+        : { remote_ip => $remote_ip,
+            remote_ip => $remote_port,
+            registered => time(),
+          };
 
     $log->info('[ ' . $_[SESSION]->ID() . ' ]->(' . $wheel_id . ") Client authenticated");
 
@@ -322,5 +340,7 @@ sub _sslify_options {
     $log->logcroak( 'Error setting SSLify_Options_NonBlock_ClientCert: ' . $@ ) if ($@);
 
 }   
+
+__PACKAGE__->meta->make_immutable(inline_constructor => 0);
 
 1;
