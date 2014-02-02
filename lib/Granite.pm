@@ -6,7 +6,7 @@ use Carp 'confess';
 use Log::Log4perl qw(:easy);
 use Granite::Engine;
 use Granite::Utils::ConfigLoader;
-use vars qw( $debug $log $log_config );
+use vars qw( $cfg $debug $log $log_config );
 
 our $VERSION = 1.0;
 
@@ -14,15 +14,14 @@ sub init {
 
     $SIG{INT} = \&QUIT;
 
-    # Load config to $CONF::cfg (global)
+    # Load config to $Granite::cfg (global)
     my $config_file = $ENV{GRANITE_CONFIG} || './conf/granite.conf';
-    Granite::Utils::ConfigLoader->load_app_config($config_file);
-
-    $debug = $CONF::cfg->{main}->{debug} || $::debug || 0;
+    $cfg = Granite::Utils::ConfigLoader::load_app_config($config_file);
+    $debug = $cfg->{main}->{debug} || $::debug || 0;
 
     # Load log config
     confess "Failed to load configuration\n"
-        unless ( $log_config = $CONF::cfg->{main}->{log_config} || './conf/log.conf' );
+        unless ( $log_config = $Granite::cfg->{main}->{log_config} || './conf/log.conf' );
 
     Log::Log4perl::Config->allow_code(0);
     Log::Log4perl::init($log_config);

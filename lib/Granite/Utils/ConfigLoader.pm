@@ -5,7 +5,7 @@ use YAML::Tiny;
 use Carp 'confess';
 
 sub load_app_config {
-    my $file = $_[1];
+    my $file = shift;
 
     if ( not -e $file ){
         confess "Config file '$file' not found\n";
@@ -14,11 +14,8 @@ sub load_app_config {
         confess "Cannot read file '$file': permission denied\n";
     }
 
-    my $config =  YAML::Tiny->read( $file );
-    {
-        package CONF;
-        our $cfg = $config->[0];
-    }
+    my $config = YAML::Tiny->read( $file );
+    return $config->[0];
 }
 
 1;
