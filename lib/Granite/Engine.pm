@@ -13,42 +13,54 @@ use Moose;
          'Granite::Utils::ModuleLoader';
 
 use namespace::autoclean;
-use vars qw($log $debug);
+use vars qw($log $debug $daemon);
 
 has modules   => ( is => 'rw', isa => 'HashRef', default => sub {{}} );
 has debug     => ( is => 'ro', isa => 'Bool' );
 has logger    => ( is => 'ro', isa => 'Object', required => 1 );
 
-sub init {
+sub run {
     my $self = shift;
     ( $log, $debug ) = ($self->logger, $self->debug);
 
-    $log->debug('At Granite::Engine::init') if $debug;
-
     if ( !$ENV{GRANITE_FOREGROUND} && $Granite::cfg->{main}->{daemonize} ){
         # Daemonize
-        my $daemon = Granite::Engine::Daemonize->new(
+        Granite::Engine::Daemonize->new(
             logger   => $log,
             debug    => $debug,
+            poe_kernel => $poe_kernel,
             workdir  => $ENV{GRANITE_WORK_DIR} || getcwd(),
             pid_file => $ENV{GRANITE_PID_FILE}
                 || $Granite::cfg->{main}->{pid_file}
                 || '/var/run/granite/granite.pid'
-        );
+        )
     }
     else {
         set_logger_stdout($log) if $debug;
     }
 
+    $self->_init;
+}
+
+sub _init {
+    my $self = shift;
+
+    $log->debug('At Granite::Engine::init') if $debug;
+
     # Load modules
     $self->_init_modules();
+
+    $log->info('Starting POE sessions');
 
     # Start main session
     # ==================
     my $session = POE::Session->create(
         inline_states => {
             _start          => sub {
-                my ($heap, $kernel) = @_[ HEAP, KERNEL ];
+                my ($heap, $kernel, $sender, $session ) = @_[ HEAP, KERNEL, SENDER, SESSION ];
+                
+                $log->debug('[ ' . $session->ID() . ' ] Sender: ' . $sender);
+                $heap->{parent} = $sender;
 
                 # Queue watcher
                 # =============
@@ -56,29 +68,32 @@ sub init {
 
                 # Server
                 # ======
-                if ( !$ENV{GRANITE_NO_TCP} && !$Granite::cfg->{server}->{disable} ){
+                unless ( $ENV{GRANITE_NO_TCP} or $Granite::cfg->{server}->{disable} ){
                     $kernel->yield("init_server", $log, $debug );
                 }
-                
+
+				# List nodes (temporarily here)                
                 $kernel->yield('list_nodes');
             },
             init_server     => \&Granite::Component::Server::run,
             list_nodes      => \&_get_node_list,
             watch_queue     => \&Granite::Component::Scheduler::Queue::Watcher::run,
-            _stop           => \&_terminate,
+            _stop           => \&terminate,
         },
         heap => { scheduler => $self->modules->{scheduler} }
     );
 
-    $log->info('Starting up POE sessions. Parent ID: [ ' . $session->ID() . ' ]' );
     $poe_kernel->run();
 
 }
 
 sub _terminate {
-    my ($heap, $kernel) = @_[ HEAP, KERNEL ];
-    $log->info('Terminating...');
+    my ($heap, $kernel, $sender, $session ) = @_[ HEAP, KERNEL, SENDER, SESSION ];
+    $log->info('[ ' . $session->ID() . '] Terminating...(caller: ' . $sender . ')');
     delete $heap->{server};
+    unlink $Granite::cfg->{server}->{unix_socket}
+        if -e $Granite::cfg->{server}->{unix_socket};
+    $kernel->stop();
     Granite->QUIT;
 }
 

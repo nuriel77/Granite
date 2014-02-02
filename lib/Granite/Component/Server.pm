@@ -47,16 +47,29 @@ sub run {
 
     $disable_ssl = $ENV{GRANITE_DISABLE_SSL} || $Granite::cfg->{server}->{disable_ssl};
 
-    $log->logwarn('[ ' . $_[SESSION]->ID() . ' ] WARNING: Both unix socket and tcp parameters are configured. Unix socket takes precedence');    
+    if ( $unix_socket
+        && ( $Granite::cfg->{server}->{port} || $Granite::cfg->{server}->{bind} )
+    ){
+        $log->warn('[ ' . $_[SESSION]->ID() . ' ] Warning: Both unix socket and tcp options are configured.'
+                  . ' Unix socket takes precedence.');
+        $bind = undef;
+        $port = undef;
+    }
+    
+
     $log->logcroak("Missing certificate file definition")   if !$disable_ssl && !$granite_crt;
     $log->logcroak("Missing key file definition")           if !$disable_ssl && !$granite_key;
 
-    unless ( $disable_ssl ){
+    unless ( $disable_ssl or $unix_socket ){
         $log->debug('[ ' . $_[SESSION]->ID() . ' ] Setting SSLify options') if $debug;
         _sslify_options();
     }
 
-    unlink $unix_socket if $unix_socket && -e $unix_socket;
+    if ( $unix_socket && -e $unix_socket ){
+        $log->logdie("Access denied on '$unix_socket'. Check permissions.")
+        	unless -w $unix_socket;
+        unlink $unix_socket or $log->logdie("Cannot unlink old socket '$unix_socket': $!");
+    }
 
     my $session = POE::Session->create(
         inline_states => {
@@ -218,6 +231,8 @@ sub _verify_client {
     }
 
     $log->info('[ ' . $_[SESSION]->ID() . " ]->($wheel_id) Verifying password\n");
+
+    # TODO: Add authentication module
     if ( $input ne 'system'  ){
         $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] Password authentication failure.\n" )
             if $canwrite;

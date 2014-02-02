@@ -12,6 +12,7 @@ has 'logger'   => ( is => 'ro', isa => 'Object', required => 1 );
 has 'debug'    => ( is => 'rw', isa => 'Bool' );
 has 'pid_file' => ( is => 'ro', isa => 'Str', required => 1 );
 has 'workdir'  => ( is => 'ro', isa => 'Str', required => 1 );
+has 'poe_kernel' => ( is => 'ro', isa => 'Object', required => 1 );
 
 $| = 1;
 
@@ -38,21 +39,26 @@ around 'new' => sub {
 
     my $pid = fork ();
 
-    if ($pid < 0) {
+    if ( !$pid ){
+        $self->poe_kernel->has_forked ;
+    } elsif ( $pid < 0 ){
         confess "fork: $!\n";
     } elsif ($pid) {
         unless ( write_file( $pid_file, { binmode => ':raw', err_mode => 'carp'}, $pid ) ){
-            $self->logger->logdie( "Cannot write pid to '$pid_file'" );
+            $self->poe_kernel->stop;
+            $self->logger->logwarn( "Cannot write pid to '$pid_file'" );
+            return undef;
         }
         $self->logger->info('Process datached from parent with pid ' . $pid) if $self->debug;
+
+        POSIX::setsid or confess "setsid: $!\n";
+
+        chdir $self->workdir or confess "Cannot chdir: $!\n";
+        umask 0;
+        delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
+
         exit 0;
     }
-
-    POSIX::setsid or confess "setsid: $!\n";
-
-    chdir $self->workdir or confess "Cannot chdir: $!\n";
-    umask 0;
-    delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
 
     return $self;
 
