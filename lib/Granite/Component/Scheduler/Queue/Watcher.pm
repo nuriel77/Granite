@@ -1,4 +1,4 @@
-package Granite::Component::Scheduler::QueueWatcher;
+package Granite::Component::Scheduler::Queue::Watcher;
 use strict;
 use warnings;
 use POE;

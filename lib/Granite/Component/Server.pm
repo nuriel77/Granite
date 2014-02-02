@@ -23,23 +23,23 @@ use vars
         $client_namespace $host_name $disable_ssl );
 
 before 'run' => sub {
-    $port            = $CONF::cfg->{server}->{port}              || 21212;
-    $bind            = $CONF::cfg->{server}->{bind}              || '127.0.0.1';
-    $max_clients     = $CONF::cfg->{server}->{max_clients}       || 10;
-    $host_name       = $CONF::cfg->{server}->{hostname}          || hostname();
-    $granite_crt     = getcwd . '/' . $CONF::cfg->{server}->{cert}              || undef;
-    $granite_key     = getcwd . '/' . $CONF::cfg->{server}->{key}               || undef;
-    $granite_cacrt   = getcwd . '/' . $CONF::cfg->{server}->{cacert}            || undef;
-    $granite_crl     = getcwd . '/' . $CONF::cfg->{server}->{crl}               || undef;
+    $port            = $Granite::cfg->{server}->{port}              || 21212;
+    $bind            = $Granite::cfg->{server}->{bind}              || '127.0.0.1';
+    $max_clients     = $Granite::cfg->{server}->{max_clients}       || 10;
+    $host_name       = $Granite::cfg->{server}->{hostname}          || hostname();
+    $granite_crt     = $Granite::cfg->{server}->{cert}   ? getcwd . '/' . $Granite::cfg->{server}->{cert}   : undef;
+    $granite_key     = $Granite::cfg->{server}->{key}    ? getcwd . '/' . $Granite::cfg->{server}->{key}    : undef;
+    $granite_cacrt   = $Granite::cfg->{server}->{cacert} ? getcwd . '/' . $Granite::cfg->{server}->{cacert} : undef;
+    $granite_crl     = $Granite::cfg->{server}->{crl}    ? getcwd . '/' . $Granite::cfg->{server}->{crl}    : undef;
     $granite_cipher  = 'DHE-RSA-AES256-GCM-SHA384:AES256-SHA';
     $ENV{GRANITE_CLIENT_CERTIFICATE} = 1 if $ENV{GRANITE_VERIFY_CLIENT};
-    $CONF::cfg->{server}->{client_certificate} ||= $CONF::cfg->{server}->{verify_client}; 
+    $Granite::cfg->{server}->{client_certificate} ||= $Granite::cfg->{server}->{verify_client}; 
 };
 
 sub run {
     ($log, $debug) = @_[ ARG0, ARG1 ];
 
-    $disable_ssl = $ENV{GRANITE_DISABLE_SSL} || $CONF::cfg->{server}->{disable_ssl};
+    $disable_ssl = $ENV{GRANITE_DISABLE_SSL} || $Granite::cfg->{server}->{disable_ssl};
     
     $log->logcroak("Missing certificate file definition")   if !$disable_ssl && !$granite_crt;
     $log->logcroak("Missing key file definition")           if !$disable_ssl && !$granite_key;
@@ -51,7 +51,7 @@ sub run {
             $log->logcroak("Cannot find '$_'. Verify existance and permissions.") unless -f $_;
         }
 
-        if ( $CONF::cfg->{server}->{client_certificate}
+        if ( $Granite::cfg->{server}->{client_certificate}
             && ( !$granite_cacrt or ! -f $granite_cacrt ) 
         ){
             $log->logcroak("Missing CA certificate. Verify existance and permissions.");
@@ -168,8 +168,8 @@ sub _client_accept {
                 SSLify_GetCTX(),
                 $socket,
                 {
-                    clientcertrequest    => $ENV{GRANITE_REQUEST_CLIENT_CERTIFICATE} || $CONF::cfg->{server}->{client_certificate},
-                    noblockbadclientcert => $ENV{GRANITE_VERIFY_CLIENT} || $CONF::cfg->{server}->{verify_client},
+                    clientcertrequest    => $ENV{GRANITE_REQUEST_CLIENT_CERTIFICATE} || $Granite::cfg->{server}->{client_certificate},
+                    noblockbadclientcert => $ENV{GRANITE_VERIFY_CLIENT} || $Granite::cfg->{server}->{verify_client},
                     getserial            => $granite_crl ? 1 : 0,
                     debug                => 0 #$debug
                 }

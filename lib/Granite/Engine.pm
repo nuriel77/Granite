@@ -4,7 +4,7 @@ use warnings;
 use Granite::Engine::Daemonize;
 use Granite::Component::Server;
 use Granite::Component::Scheduler::Nodes;
-use Granite::Component::Scheduler::QueueWatcher;
+use Granite::Component::Scheduler::Queue::Watcher;
 use Cwd 'getcwd';
 use POE;
 use Data::Dumper::Concise;
@@ -25,14 +25,14 @@ sub init {
 
     $log->debug('At Granite::Engine::init') if $debug;
 
-    if ( !$ENV{GRANITE_FOREGROUND} && $CONF::cfg->{main}->{daemonize} ){
+    if ( !$ENV{GRANITE_FOREGROUND} && $Granite::cfg->{main}->{daemonize} ){
         # Daemonize
         my $daemon = Granite::Engine::Daemonize->new(
             logger   => $log,
             debug    => $debug,
             workdir  => $ENV{GRANITE_WORK_DIR} || getcwd(),
             pid_file => $ENV{GRANITE_PID_FILE}
-                || $CONF::cfg->{main}->{pid_file}
+                || $Granite::cfg->{main}->{pid_file}
                 || '/var/run/granite/granite.pid'
         );
     }
@@ -72,13 +72,13 @@ sub init {
                 $kernel->yield("watch_queue", $log, $debug, $self->modules->{scheduler} );
 
                 # Server
-                if ( !$ENV{GRANITE_NO_TCP} && !$CONF::cfg->{server}->{disable} ){
+                if ( !$ENV{GRANITE_NO_TCP} && !$Granite::cfg->{server}->{disable} ){
                     $log->debug('Initializing Granite::Component::Server') if $debug;
                     $kernel->yield("init_server", $log, $debug );
                 }
             },
             init_server     => \&Granite::Component::Server::run,
-            watch_queue     => \&Granite::Component::Scheduler::QueueWatcher::run,
+            watch_queue     => \&Granite::Component::Scheduler::Queue::Watcher::run,
             _stop           => \&_terminate,
         }
     );
@@ -104,9 +104,9 @@ sub _init_modules {
 #    meta:
 #      - '/opt/slurm/etc/slurm.conf'
 
-    for my $module ( keys %{$CONF::cfg->{modules}} ){
+    for my $module ( keys %{$Granite::cfg->{modules}} ){
         my $package = 'Granite::Modules::' . ucfirst($module)
-                    . '::' . $CONF::cfg->{modules}->{$module}->{name};
+                    . '::' . $Granite::cfg->{modules}->{$module}->{name};
         if ( my $error = load_module( $package ) ){
             $log->logcroak("Failed to load module '" . $package . "': $error" );
         }
@@ -114,7 +114,7 @@ sub _init_modules {
             $self->modules->{$module}->{$package} =
                 $package->new(
                     name => $package,
-                    metadata => $CONF::cfg->{modules}->{$module}->{metadata}
+                    metadata => $Granite::cfg->{modules}->{$module}->{metadata}
                 );
             $log->debug("Loaded module '" . $package . "'") if $debug;
         }
