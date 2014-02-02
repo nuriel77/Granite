@@ -128,6 +128,7 @@ sub _get_node_list {
 
     $log->debug( '[ ' . $_[SESSION]->ID() . ' ] Number of visible scheduler nodes: ' . scalar @visible_nodes );
 }
+
 __PACKAGE__->meta->make_immutable(inline_constructor => 0);
 
 1;
