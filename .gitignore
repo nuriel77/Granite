@@ -2,3 +2,4 @@ test.pl
 conf/ssl/
 conf/granite.conf
 conf/easy-rsa
+sandbox/

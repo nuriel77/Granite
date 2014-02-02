@@ -27,12 +27,14 @@ sub get_queue {
 
     my $sq = $self->scheduler->load_jobs();
 
-    my $output;
-    for (@{$sq->{job_array}}){
-         $output .= '' . ( join ":", ( $_->{job_id}, $_->{priority}, $_->{num_cpus}, $_->{num_nodes}) ) . ';'
-            if $_->{partition} eq $reservation_queue;
-    }
-    return $output;
+    return $sq->{job_array} if $sq->{job_array};
+    #my $output;
+    #for (@{$sq->{job_array}}){
+    #     $output .= '' . ( join ":", ( $_->{job_id}, $_->{priority}, $_->{num_cpus}, $_->{num_nodes}) ) . ';'
+    #        if $_->{partition} eq $reservation_queue;
+    #}
+    #return $output;
+
 }
 
 sub get_nodes {

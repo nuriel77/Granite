@@ -5,8 +5,6 @@ use File::Basename 'basename';
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use Granite;
-use vars '$debug';
 
 $0 = basename($0);
-$debug = $ENV{GRANITE_DEBUG} || '-d' ~~ @ARGV;
 Granite->init();
