@@ -43,47 +43,33 @@ sub init {
     # Load modules
     $self->_init_modules();
 
-
-#
-#   Temporarily here:
-#
-    my $scheduler_nodes =
-        Granite::Component::Scheduler::Nodes->new(
-            scheduler => $self->modules->{scheduler},
-            logger => $log,
-            debug => $debug );
-
-    my $node_array = $scheduler_nodes->list_nodes;
-    my @visible_nodes = grep defined, @{$node_array};
-
-    if ( $debug ){
-        $log->debug( "Defined Node: " . Dumper $_ ) for @visible_nodes;
-    }
-
-
-
     # Start main session
-    POE::Session->create(
+    # ==================
+    my $session = POE::Session->create(
         inline_states => {
-            _start       => sub {
+            _start          => sub {
                 my ($heap, $kernel) = @_[ HEAP, KERNEL ];
 
                 # Queue watcher
+                # =============
                 $kernel->yield("watch_queue", $log, $debug, $self->modules->{scheduler} );
 
                 # Server
+                # ======
                 if ( !$ENV{GRANITE_NO_TCP} && !$Granite::cfg->{server}->{disable} ){
-                    $log->debug('Initializing Granite::Component::Server') if $debug;
                     $kernel->yield("init_server", $log, $debug );
                 }
+                
+                $kernel->yield('list_nodes', $self->modules->{scheduler} );
             },
             init_server     => \&Granite::Component::Server::run,
+            list_nodes      => \&_get_node_list,
             watch_queue     => \&Granite::Component::Scheduler::Queue::Watcher::run,
             _stop           => \&_terminate,
         }
     );
 
-    $log->info('Starting up engine');
+    $log->info('Starting up POE sessions. Parent ID: [ ' . $session->ID() . ' ]' );
     $poe_kernel->run();
 
 }
@@ -121,6 +107,25 @@ sub _init_modules {
     }
 }
 
+#
+#   Temporarily here:
+#
+sub _get_node_list {
+
+    my $scheduler_nodes =
+        Granite::Component::Scheduler::Nodes->new(
+            #scheduler => $self->modules->{scheduler},
+            scheduler => $_[ARG0],
+            logger => $log,
+            debug => $debug );
+
+    my $node_array = $scheduler_nodes->list_nodes;
+    my @visible_nodes = grep defined, @{$node_array};
+
+    if ( $debug ){
+        $log->debug( "Defined Node: " . Dumper $_ ) for @visible_nodes;
+    }
+}
 __PACKAGE__->meta->make_immutable(inline_constructor => 0);
 
 1;
