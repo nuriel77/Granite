@@ -39,17 +39,20 @@ before 'run' => sub {
 sub run {
     ($log, $debug) = @_[ ARG0, ARG1 ];
 
+    $log->debug('[ ' . $_[SESSION]->ID() . ' ] Initializing Granite::Component::Server')
+        if $debug;
+
     $disable_ssl = $ENV{GRANITE_DISABLE_SSL} || $Granite::cfg->{server}->{disable_ssl};
     
     $log->logcroak("Missing certificate file definition")   if !$disable_ssl && !$granite_crt;
     $log->logcroak("Missing key file definition")           if !$disable_ssl && !$granite_key;
 
     unless ( $disable_ssl ){
-        $log->debug('Setting SSLify options') if $debug;
+        $log->debug('[ ' . $_[SESSION]->ID() . ' ] Setting SSLify options') if $debug;
         _sslify_options();
     }
 
-    POE::Session->create(
+    my $session = POE::Session->create(
         inline_states => {
             _start => sub {
                 my ( $heap, $kernel ) = @_[ HEAP, KERNEL ];
@@ -72,13 +75,13 @@ sub run {
         }
     );
 
-    $log->info("* Server started at $bind:$port *");
+    $log->info('[ ' . $_[SESSION]->ID() .  " ] Server started at $bind:$port with session ID: " . $session->ID() );
 
 }
 
 sub _server_error {
     my ($operation, $errnum, $errstr, $wheel_id) = @_[ARG0..ARG3];
-    $log->logdie("Server error: [$errnum] $errstr");
+    $log->logdie('[ ' . $_[SESSION]->ID() . " ]->($wheel_id) Server error: [$errnum] $errstr");
     delete $_[HEAP]->{server};
 }
 
@@ -86,10 +89,10 @@ sub _client_error {
     my ( $kernel, $heap, $operation ) = @_[ KERNEL, HEAP, ARG0 ];
     my ($errnum, $errstr, $wheel_id) = @_[ARG1..ARG3];
     if ( $errnum > 0 ){
-        $log->warn("[ $wheel_id ] client_error: ($errnum) $errstr");
+        $log->warn('[ ' . $_[SESSION]->ID() . " ]->($wheel_id) client_error: ($errnum) $errstr");
     }
     else {
-        $log->info("[ $wheel_id ] Client disconnected");
+        $log->info('[ ' . $_[SESSION]->ID() . " ]->($wheel_id) Client disconnected");
     }
     delete $heap->{server}->{$wheel_id}->{wheel};
     delete $_[HEAP]{wheels}{$wheel_id};
@@ -98,19 +101,19 @@ sub _client_error {
 sub _close_delayed {
     my ( $kernel, $heap, $wheel_id ) = @_[ KERNEL, HEAP, ARG0 ];
 
-    $log->debug("[ $wheel_id ] At _close_delayed") if $debug;
+    $log->debug('[ ' . $_[SESSION]->ID() . " ]->($wheel_id) At _close_delayed") if $debug;
     delete $heap->{server}->{$wheel_id}->{wheel};
     delete $heap->{server}->{$wheel_id}->{socket};
     delete $client_namespace->{$wheel_id};
 
-    $log->info("[ " . $wheel_id . " ] Client disconnected.");
+    $log->info('[ ' . $_[SESSION]->ID() . ' ]->(' . $wheel_id . ") Client disconnected.");
 }
 
 sub _client_disconnect {
     my ( $heap, $kernel, $wheel_id ) = @_[ HEAP, KERNEL, ARG0 ];
 
-    $log->debug("[ $wheel_id ] At _client_disconnect") if $debug;
-    $log->info("[ " . $wheel_id . " ] Client disconnecting (delayed).");
+    $log->debug('[ ' . $_[SESSION]->ID() . " ]->($wheel_id) At _client_disconnect") if $debug;
+    $log->info('[ ' . $_[SESSION]->ID() . ' ]->(' . $wheel_id . ") Client disconnecting (delayed).");
 
     $kernel->delay( close_delayed => 1, $wheel_id )
       unless ( $heap->{server}->{$wheel_id}->{disconnecting}++ );
@@ -118,12 +121,14 @@ sub _client_disconnect {
 
 sub _client_input {
     my ( $heap, $kernel, $input, $wheel_id ) = @_[ HEAP, KERNEL, ARG0, ARG1 ];
+
     chomp($input);
-    $log->debug('At _client_input') if $debug;
+    $log->debug('[ ' . $_[SESSION]->ID() . " ]->($wheel_id) At _client_input")
+        if $debug;
 
     # Assign boolean if can write to socket
     my $canwrite = exists $heap->{server}->{$wheel_id}->{wheel}
-      && ( ref( $heap->{server}->{$wheel_id}->{wheel} ) eq "POE::Wheel::ReadWrite" );
+      && ( ref( $heap->{server}->{$wheel_id}->{wheel} ) eq 'POE::Wheel::ReadWrite' );
 
     # Check if client has already been verified and registered
     if ( not exists $client_namespace->{$wheel_id} ){
@@ -131,7 +136,7 @@ sub _client_input {
         $kernel->yield( "verify_client", $input, $wheel_id, $canwrite );
     }
     else {
-        $input = _sanitize_input($wheel_id, $input);
+        $input = _sanitize_input($_[SESSION]->ID(), $wheel_id, $input);
         $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] Your input: $input\n" )
             if $canwrite;
     }
@@ -140,10 +145,10 @@ sub _client_input {
 sub _client_accept {
     my ( $heap, $kernel, $socket, $wheel_id ) = @_[ HEAP, KERNEL, ARG0, ARG1 ];
 
-    $log->debug('At _client_accept') if $debug;
+    $log->info('[ ' . $_[SESSION]->ID() .' ] New connection received');
 
     unless ( $disable_ssl ){
-        $log->info('[ ' . $wheel_id .' ] Starting up SSLify on socket');
+        $log->info('[ ' . $_[SESSION]->ID() .' ] Starting up SSLify on socket');
         eval {
             $socket = Server_SSLify_NonBlock(
                 SSLify_GetCTX(),
@@ -171,9 +176,9 @@ sub _client_accept {
         ErrorEvent => 'client_error'
     );
 
-    my ( $remote_ip, $remote_port ) = _get_remote_address($socket);
+    my ( $remote_ip, $remote_port ) = _get_remote_address($socket, $_[SESSION]->ID(), $io_wheel->ID());
  
-    $log->info( '[ ' . $io_wheel->ID() . ' ] Remote Addr: ' . $remote_ip . ':' . $remote_port );
+    $log->info( '[ ' . $_[SESSION]->ID() . ' ]->(' . $io_wheel->ID() . ') Remote Addr: ' . $remote_ip . ':' . $remote_port );
     
     $heap->{server}->{ $io_wheel->ID() }->{remote_ip} = $remote_ip;
     $heap->{server}->{ $io_wheel->ID() }->{remote_port} = $remote_port;
@@ -185,17 +190,17 @@ sub _verify_client {
     my ( $heap, $kernel, $input, $wheel_id, $canwrite ) 
         = @_[ HEAP, KERNEL, ARG0, ARG1, ARG2 ];
 
-    $log->debug('At _verify_client') if $debug;
+    $log->debug('[ ' . $_[SESSION]->ID() . " ]->($wheel_id) At _verify_client") if $debug;
     my $socket = $heap->{server}->{$wheel_id}->{socket};
     my $remote_ip = $heap->{server}->{$wheel_id}->{remote_ip};
     my $remote_port = $heap->{server}->{$wheel_id}->{remote_port};
 
     # Check SSL if enabled
     unless ( $disable_ssl ) {
-        _verify_client_ssl($wheel_id, $socket, $canwrite);
+        _verify_client_ssl($wheel_id, $socket, $canwrite, $_[SESSION]->ID() );
     }
 
-    $log->info('[ ' . $wheel_id . " ] Verifying password\n");
+    $log->info('[ ' . $_[SESSION]->ID() . " ]->($wheel_id) Verifying password\n");
     if ( $input ne 'system'  ){
         $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] Password authentication failure.\n" )
             if $canwrite;
@@ -210,7 +215,7 @@ sub _verify_client {
         registered => time(),
     };
 
-    $log->info("[ " . $wheel_id . " ] Client authenticated");
+    $log->info('[ ' . $_[SESSION]->ID() . ' ]->(' . $wheel_id . ") Client authenticated");
 
     $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] Authenticated!\n" )
         if $canwrite;
@@ -218,22 +223,24 @@ sub _verify_client {
 }
 
 sub _sanitize_input {
-    my ($wheel_id, $input) = @_;
+    my ($sessionId, $wheel_id, $input) = @_;
 
     return $input if $input eq '';
 
     unless ($input =~ /^[a-zA-Z0-9_\-\.,\!\%\$\^\&\(\)\[\]\{\}\+\=\@\?]+$/){
-        $log->warn( '[ ' . $wheel_id . ' ] Client input contains invalid characters, erasing content.' );
+        $log->warn( '[ '. $sessionId . ' ]->(' . $wheel_id . ') Client input contains invalid characters, erasing content.' );
         $input = '';
     }
     else {
-        $log->debug("[ $wheel_id ] Got client input: '" . $input . "'") if $debug;
+        $log->debug('[ '. $sessionId . ' ]->(' . $wheel_id . ") Got client input: '" . $input . "'")
+            if $debug;
     }
     return $input;
 }
 
 sub _get_remote_address {
-    my $socket = shift;
+    my ($socket, $sessionId, $wheel_id) = @_;
+
     my $remote_ip;
     my ($remote_port, $addr) = ( 'unknown', 'n/a' );
     eval { 
@@ -241,20 +248,20 @@ sub _get_remote_address {
             unpack_sockaddr_in( getpeername ( $disable_ssl ? $socket : SSLify_GetSocket( $socket ) ) );
     };
     if ( $@ ) {
-        $log->logcluck("Error getting remote peer name: $@");
+        $log->logcluck('[ '. $sessionId . ' ]->(' . $wheel_id . ") Error getting remote peer name: $@");
     }
     else {
         eval { $remote_ip = inet_ntoa( $addr ) };
-        $log->logcluck("Error getting ip address: $@") if $@;
+        $log->logcluck('[ '. $sessionId . ' ]->(' . $wheel_id . ") Error getting ip address: $@") if $@;
     }
     return wantarray ? ( $remote_ip, $remote_port ) : "$remote_ip:$remote_port";
 }
 
 sub _verify_client_ssl {
-    my ( $wheel_id, $socket, $canwrite ) = @_;
+    my ( $wheel_id, $socket, $canwrite, $sessionId ) = @_;
     my ( $kernel, $heap ) = @_[ KERNEL, HEAP ];
 
-    $log->info('Verifying Server_SSLify_NonBlock_SSLDone on socket');
+    $log->info('[ '. $sessionId . ' ]->(' . $wheel_id . ') Verifying Server_SSLify_NonBlock_SSLDone on socket');
     unless ( Server_SSLify_NonBlock_SSLDone($socket) ) {
         $log->error('[ ' . $wheel_id . ' ] SSL Handshake failed');
         $kernel->yield( "disconnect" => $wheel_id );
@@ -262,7 +269,7 @@ sub _verify_client_ssl {
     }
 
     my $ctx = SSLify_GetCTX( $socket ); 
-    $log->debug('[ '. $wheel_id  .' ] Have global CTX: ' . SSLify_GetCTX()
+    $log->debug('[ '. $sessionId . ' ]->('. $wheel_id  .') Have global CTX: ' . SSLify_GetCTX()
               . ', client CTX: ' . $ctx
               . ', client cipher: ' . SSLify_GetCipher($socket)
     ) if $debug;
@@ -271,7 +278,7 @@ sub _verify_client_ssl {
     if ( $ENV{GRANITE_CLIENT_CERTIFICATE} and !( Server_SSLify_NonBlock_ClientCertificateExists($socket) ) ) {
         $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] NoClientCertExists\n" )
             if $canwrite;
-        $log->error("[ " . $wheel_id . " ] NoClientCertExists");
+        $log->error('[ '. $sessionId . ' ]->(' . $wheel_id . ') NoClientCertExists');
         $kernel->yield( "disconnect" => $wheel_id );
         return;
     }
@@ -279,7 +286,7 @@ sub _verify_client_ssl {
     elsif ( $ENV{GRANITE_VERIFY_CLIENT} and !( Server_SSLify_NonBlock_ClientCertIsValid($socket) ) ) {
         $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] ClientCertInvalid\n" )
             if $canwrite;
-        $log->error("[ " . $wheel_id . " ] ClientCertInvalid");
+        $log->error( '[ '. $sessionId . ' ]->(' . $wheel_id . ') ClientCertInvalid' );
         $kernel->yield( "disconnect" => $wheel_id );
         return;
     }
@@ -297,22 +304,24 @@ sub _verify_client_ssl {
 }
 
 sub _sslify_options {
-        for ( $granite_key, $granite_crt ){
-            $log->logcroak("Cannot find '$_'. Verify existance and permissions.") unless -f $_;
-        }
 
-        if ( $Granite::cfg->{server}->{client_certificate}
-            && ( !$granite_cacrt or ! -f $granite_cacrt ) 
-        ){
-            $log->logcroak("Missing CA certificate. Verify existance and permissions.");
-        }
+    for ( $granite_key, $granite_crt ){
+        $log->logcroak("Cannot find '$_'. Verify existance and permissions.") unless -f $_;
+    }
 
-        eval { SSLify_Options( $granite_key, $granite_crt ) };
-        $log->logcroak( "Error setting SSLify_Options with '$granite_key' and '$granite_crt': "
-                        . $@ . ' Check file permissions.' ) if ($@);
+    if ( $Granite::cfg->{server}->{client_certificate}
+        && ( !$granite_cacrt or ! -f $granite_cacrt ) 
+    ){
+        $log->logcroak("Missing CA certificate. Verify existance and permissions.");
+    }
 
-        eval { SSLify_Options_NonBlock_ClientCert( SSLify_GetCTX(), $granite_cacrt ); } if $granite_cacrt;
-        $log->logcroak( 'Error setting SSLify_Options_NonBlock_ClientCert: ' . $@ ) if ($@);
+    eval { SSLify_Options( $granite_key, $granite_crt ) };
+    $log->logcroak( "Error setting SSLify_Options with '$granite_key' and '$granite_crt': "
+                    . $@ . ' Check file permissions.' ) if ($@);
+
+    eval { SSLify_Options_NonBlock_ClientCert( SSLify_GetCTX(), $granite_cacrt ); } if $granite_cacrt;
+    $log->logcroak( 'Error setting SSLify_Options_NonBlock_ClientCert: ' . $@ ) if ($@);
+
 }   
 
 1;
