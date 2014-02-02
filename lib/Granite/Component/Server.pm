@@ -46,24 +46,7 @@ sub run {
 
     unless ( $disable_ssl ){
         $log->debug('Setting SSLify options') if $debug;
-
-        for ( $granite_key, $granite_crt ){
-            $log->logcroak("Cannot find '$_'. Verify existance and permissions.") unless -f $_;
-        }
-
-        if ( $Granite::cfg->{server}->{client_certificate}
-            && ( !$granite_cacrt or ! -f $granite_cacrt ) 
-        ){
-            $log->logcroak("Missing CA certificate. Verify existance and permissions.");
-        }
-
-        eval { SSLify_Options( $granite_key, $granite_crt ) };
-        $log->logcroak( "Error setting SSLify_Options with '$granite_key' and '$granite_crt': "
-                        . $@ . ' Check file permissions.' ) if ($@);
-
-        eval { SSLify_Options_NonBlock_ClientCert( SSLify_GetCTX(), $granite_cacrt ); } if $granite_cacrt;
-        $log->logcroak( 'Error setting SSLify_Options_NonBlock_ClientCert: ' . $@ ) if ($@);
-   
+        _sslify_options();
     }
 
     POE::Session->create(
@@ -135,7 +118,6 @@ sub _client_disconnect {
 
 sub _client_input {
     my ( $heap, $kernel, $input, $wheel_id ) = @_[ HEAP, KERNEL, ARG0, ARG1 ];
-
     chomp($input);
     $log->debug('At _client_input') if $debug;
 
@@ -153,7 +135,6 @@ sub _client_input {
         $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] Your input: $input\n" )
             if $canwrite;
     }
-
 }
 
 sub _client_accept {
@@ -211,47 +192,7 @@ sub _verify_client {
 
     # Check SSL if enabled
     unless ( $disable_ssl ) {
-
-        $log->info('Verifying Server_SSLify_NonBlock_SSLDone on socket');
-        unless ( Server_SSLify_NonBlock_SSLDone($socket) ) {
-            $log->error('[ ' . $wheel_id . ' ] SSL Handshake failed');
-            $kernel->yield( "disconnect" => $wheel_id );
-            return;
-        }
-
-        my $ctx = SSLify_GetCTX( $socket ); 
-
-        $log->debug('[ '. $wheel_id  .' ] Have global CTX: ' . SSLify_GetCTX()
-                  . ', client CTX: ' . $ctx
-                  . ', client cipher: ' . SSLify_GetCipher($socket)
-        ) if $debug;
-
-        # Check certificate provided by client
-        if ( $ENV{GRANITE_CLIENT_CERTIFICATE} and !( Server_SSLify_NonBlock_ClientCertificateExists($socket) ) ) {
-            $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] NoClientCertExists\n" )
-                if $canwrite;
-            $log->error("[ " . $wheel_id . " ] NoClientCertExists");
-            $kernel->yield( "disconnect" => $wheel_id );
-            return;
-        }
-        # check certificate valid
-        elsif ( $ENV{GRANITE_VERIFY_CLIENT} and !( Server_SSLify_NonBlock_ClientCertIsValid($socket) ) ) {
-            $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] ClientCertInvalid\n" )
-                if $canwrite;
-            $log->error("[ " . $wheel_id . " ] ClientCertInvalid");
-            $kernel->yield( "disconnect" => $wheel_id );
-            return;
-        }
-	# TODO: Patch Net::SSLeay or try dump certificate and verify via openssl class
-        # check certificate against CRL
-        #elsif ( $granite_crl and !( Server_SSLify_NonBlock_ClientCertVerifyAgainstCRL( $socket, $granite_crl ) ) ) {
-        #    $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] CRL Error\n" )
-        #        if $canwrite;
-        #    $log->error("[ " . $wheel_id . " ] CRL Error");
-        #    $kernel->yield( "disconnect" => $wheel_id );
-        #    return;
-        #}
-	warn "" . Server_SSLify_NonBlock_GetClientCertificateIDs($socket) . "\n";
+        _verify_client_ssl($wheel_id, $socket, $canwrite);
     }
 
     $log->info('[ ' . $wheel_id . " ] Verifying password\n");
@@ -309,5 +250,69 @@ sub _get_remote_address {
     return wantarray ? ( $remote_ip, $remote_port ) : "$remote_ip:$remote_port";
 }
 
+sub _verify_client_ssl {
+    my ( $wheel_id, $socket, $canwrite ) = @_;
+    my ( $kernel, $heap ) = @_[ KERNEL, HEAP ];
+
+    $log->info('Verifying Server_SSLify_NonBlock_SSLDone on socket');
+    unless ( Server_SSLify_NonBlock_SSLDone($socket) ) {
+        $log->error('[ ' . $wheel_id . ' ] SSL Handshake failed');
+        $kernel->yield( "disconnect" => $wheel_id );
+        return;
+    }
+
+    my $ctx = SSLify_GetCTX( $socket ); 
+    $log->debug('[ '. $wheel_id  .' ] Have global CTX: ' . SSLify_GetCTX()
+              . ', client CTX: ' . $ctx
+              . ', client cipher: ' . SSLify_GetCipher($socket)
+    ) if $debug;
+
+    # Check certificate provided by client
+    if ( $ENV{GRANITE_CLIENT_CERTIFICATE} and !( Server_SSLify_NonBlock_ClientCertificateExists($socket) ) ) {
+        $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] NoClientCertExists\n" )
+            if $canwrite;
+        $log->error("[ " . $wheel_id . " ] NoClientCertExists");
+        $kernel->yield( "disconnect" => $wheel_id );
+        return;
+    }
+    # check certificate valid
+    elsif ( $ENV{GRANITE_VERIFY_CLIENT} and !( Server_SSLify_NonBlock_ClientCertIsValid($socket) ) ) {
+        $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] ClientCertInvalid\n" )
+            if $canwrite;
+        $log->error("[ " . $wheel_id . " ] ClientCertInvalid");
+        $kernel->yield( "disconnect" => $wheel_id );
+        return;
+    }
+	# TODO: Patch Net::SSLeay or try dump certificate and verify via openssl class
+    # check certificate against CRL
+    #elsif ( $granite_crl and !( Server_SSLify_NonBlock_ClientCertVerifyAgainstCRL( $socket, $granite_crl ) ) ) {
+    #    $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] CRL Error\n" )
+    #        if $canwrite;
+    #    $log->error("[ " . $wheel_id . " ] CRL Error");
+    #    $kernel->yield( "disconnect" => $wheel_id );
+    #    return;
+    #}
+    #warn "XXXXXXX " . Server_SSLify_NonBlock_GetClientCertificateIDs($socket) . "\n";
+
+}
+
+sub _sslify_options {
+        for ( $granite_key, $granite_crt ){
+            $log->logcroak("Cannot find '$_'. Verify existance and permissions.") unless -f $_;
+        }
+
+        if ( $Granite::cfg->{server}->{client_certificate}
+            && ( !$granite_cacrt or ! -f $granite_cacrt ) 
+        ){
+            $log->logcroak("Missing CA certificate. Verify existance and permissions.");
+        }
+
+        eval { SSLify_Options( $granite_key, $granite_crt ) };
+        $log->logcroak( "Error setting SSLify_Options with '$granite_key' and '$granite_crt': "
+                        . $@ . ' Check file permissions.' ) if ($@);
+
+        eval { SSLify_Options_NonBlock_ClientCert( SSLify_GetCTX(), $granite_cacrt ); } if $granite_cacrt;
+        $log->logcroak( 'Error setting SSLify_Options_NonBlock_ClientCert: ' . $@ ) if ($@);
+}   
 
 1;
