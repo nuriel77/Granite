@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use Granite::Engine::Daemonize;
 use Granite::Component::Server;
+use Granite::Component::Scheduler::Queue;
 use Granite::Component::Scheduler::Nodes;
 use Granite::Component::Scheduler::Queue::Watcher;
 use Cwd 'getcwd';
@@ -58,9 +59,10 @@ sub _init {
         inline_states => {
             _start          => sub {
                 my ($heap, $kernel, $sender, $session ) = @_[ HEAP, KERNEL, SENDER, SESSION ];
-                
+
                 $log->debug('[ ' . $session->ID() . ' ] Sender: ' . $sender);
                 $heap->{parent} = $sender;
+                $kernel->alias_set('engine');
 
                 # Queue watcher
                 # =============
@@ -72,12 +74,12 @@ sub _init {
                     $kernel->yield("init_server", $log, $debug );
                 }
 
-				# List nodes (temporarily here)                
-                $kernel->yield('list_nodes');
             },
+            _child          => \&child_sessions,
             init_server     => \&Granite::Component::Server::run,
-            list_nodes      => \&_get_node_list,
+            process_res_q   => \&Granite::Component::Scheduler::Queue::process_queue,
             watch_queue     => \&Granite::Component::Scheduler::Queue::Watcher::run,
+            _default        => \&handle_default,
             _stop           => \&terminate,
         },
         heap => { scheduler => $self->modules->{scheduler} }
@@ -123,6 +125,25 @@ sub _init_modules {
     }
 }
 
+sub child_sessions {
+    my ($heap, $kernel, $operation, $child) = @_[HEAP, KERNEL, ARG0, ARG1];
+    if ($operation eq 'create' or $operation eq 'gain') {
+        $heap->{child_count}++;
+    }
+    elsif ($operation eq 'lose') {
+        $heap->{child_count}--;
+    }
+}
+
+sub handle_default {
+    my ($event, $args) = @_[ARG0, ARG1];
+    $log->logdie(
+      "Session ", $_[SESSION]->ID,
+      " caught unhandled event $event with (@$args).\n"
+    );
+}
+
+=comment
 #
 #   Temporarily here:
 #
@@ -143,6 +164,8 @@ sub _get_node_list {
 
     $log->debug( '[ ' . $_[SESSION]->ID() . ' ] Number of visible scheduler nodes: ' . scalar @visible_nodes );
 }
+
+=cut
 
 __PACKAGE__->meta->make_immutable(inline_constructor => 0);
 

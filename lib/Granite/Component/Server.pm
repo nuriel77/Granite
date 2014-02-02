@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use Socket;
 use Cwd 'getcwd';
+use Scalar::Util 'looks_like_number';
 use Sys::Hostname;
 use Moose;
 use namespace::autoclean;
@@ -75,6 +76,7 @@ sub run {
         inline_states => {
             _start => sub {
                 my ( $heap, $kernel ) = @_[ HEAP, KERNEL ];
+                $_[KERNEL]->alias_set('server');
                 $heap->{server_wheel} = POE::Wheel::SocketFactory->new(
                     SocketDomain => $unix_socket ? PF_UNIX : AF_INET,
                     BindAddress  => $unix_socket || $bind,
@@ -92,6 +94,8 @@ sub run {
             close_delayed     => \&_close_delayed,
             server_error      => \&_server_error,
             client_error      => \&_client_error,
+            _default          => \&Granite::Engine::handle_default,
+            _stop             => \&server_error,
         }
     );
 
@@ -104,10 +108,14 @@ sub run {
 
 }
 
-sub _server_error {
-    my ($operation, $errnum, $errstr, $wheel_id) = @_[ARG0..ARG3];
-    $log->logdie('[ ' . $_[SESSION]->ID() . " ]->($wheel_id) Server error: [$errnum] $errstr");
+sub server_error {
+    my ($operation, $errnum, $errstr ) = @_[ARG0..ARG2];
     delete $_[HEAP]->{server};
+    $client_namespace = {};
+    $log->logdie('[ ' . $_[SESSION]->ID() 
+                . " ] Server error from session ID "
+                . $_[SENDER]->ID() . ( $errnum ? ": ($errnum) $errstr" : '' ) )
+        if looks_like_number($_[SENDER]->ID());
 }
 
 sub _client_error {
