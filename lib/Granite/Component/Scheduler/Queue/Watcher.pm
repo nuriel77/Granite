@@ -30,7 +30,7 @@ sub run {
             heap => {
                 scheduler => $scheduler->{(keys %{$scheduler})[0]},
             }
-        );
+        ) or $log->logcroak('[ ' . $_[SESSION]->ID() .  " ] can't POE::Session->create: $!" );
     
     $log->debug( '[ ' . $_[SESSION]->ID()
                 . '] QueueWatcher parent session created with ID: '
@@ -87,7 +87,7 @@ sub create_child {
             next   => \&child_process_input,
         },
         heap => { scheduler => $_[HEAP]->{scheduler} }
-    );
+    ) or $log->logdie('[ ' . $_[SESSION]->ID() .  " ] can't POE::Session->create: $!" );
 
     $log->info('[ ' . $_[SESSION]->ID() . ' ] Child session started with ID: [ ' . $session->ID() . ' ]');
 
