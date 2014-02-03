@@ -1,20 +1,28 @@
 package Granite::Modules::Cloud::OpenStack;
-use strict;
-use warnings;
-use Net::OpenStack::Compute;
+use Granite::Modules::Cloud::OpenStack::Compute;
 use Carp 'confess';
 use Moose;
     with 'Granite::Modules::Cloud';
-
 use namespace::autoclean;
 
+=head1 DESCRIPTION
+
+Uses the subclass of Net::OpenStack::Compute
+
+(Granite::Modules::Cloud::OpenStack::Compute)
+
+=head1 SYNOPSYS
+
+See configuration file for more details
+
+=cut
 
 around 'new' => sub {
     my $orig = shift;
     my $class = shift;
     my $self = $class->$orig(@_);
 
-    my $compute = Net::OpenStack::Compute->new(
+    my $compute = Granite::Modules::Cloud::OpenStack::Compute->new(
         auth_url     => $ENV{OS_AUTH_URL}               || $self->metadata->{auth_url},
         user         => $ENV{OS_USERNAME}               || $self->metadata->{user},
         password     => $ENV{OS_PASSWORD}               || $self->metadata->{password},
@@ -26,18 +34,22 @@ around 'new' => sub {
         verify_ssl   => $self->metadata->{verify_ssl}   || 0,
     ) or $Granite::log->logcroack('Cannot Net::OpenStack::Compute->new: ' . $!);
 
-
     $self->compute ( $compute );
-
     return $self;
 };
 
-sub get_instances {
-    my $self = shift;
-    return $self->compute->get_servers(detail => 1);
-}
+sub get_all_instances { shift->compute->get_servers(detail => 1) }
+
+sub get_all_hypervisors { shift->compute->get_hypervisors(detail => 1) }
+
+sub get_resouces_stats { shift->compute->get_hypervisors_stats(detail => 1) }
 
 __PACKAGE__->meta->make_immutable(inline_constructor => 0);
 
+=head1 AUTHOR
+
+Nuriel Shem-Tov
+
+=cut
 
 1;
