@@ -17,6 +17,7 @@ use namespace::autoclean;
 use vars qw($log $debug $daemon);
 
 has modules   => ( is => 'rw', isa => 'HashRef', default => sub {{}} );
+has queue     => ( is => 'rw', isa => 'Object' );
 has debug     => ( is => 'ro', isa => 'Bool' );
 has logger    => ( is => 'ro', isa => 'Object', required => 1 );
 
@@ -26,6 +27,7 @@ sub run {
 
     if ( !$ENV{GRANITE_FOREGROUND} && $Granite::cfg->{main}->{daemonize} ){
         # Daemonize
+        # =========
         Granite::Engine::Daemonize->new(
             logger   => $log,
             debug    => $debug,
@@ -37,6 +39,9 @@ sub run {
         )
     }
     else {
+        # set logger output to 
+        # stdout if not daemonizing
+        # ===========================
         set_logger_stdout($log) if $debug;
     }
 
@@ -49,7 +54,12 @@ sub _init {
     $log->debug('At Granite::Engine::init') if $debug;
 
     # Load modules
+    # ============
     $self->_init_modules();
+    $self->queue( Granite::Component::Scheduler::Queue->new );
+
+    #my $cloud = $self->{modules}->{cloud}->{ (keys %{$self->{modules}->{cloud}})[0] };
+    #warn Dumper $cloud->get_instances;
 
     $log->info('Starting POE sessions');
 
@@ -77,7 +87,7 @@ sub _init {
             },
             _child          => \&child_sessions,
             init_server     => sub { Granite::Component::Server->new()->run( $_[SESSION]->ID() ) },
-            process_res_q   => \&Granite::Component::Scheduler::Queue::process_queue,
+            process_res_q   => sub { $self->queue->process_queue( $_[HEAP], $_[SESSION]->ID() ) },
             watch_queue     => \&Granite::Component::Scheduler::Queue::Watcher::run,
             _default        => \&handle_default,
             _stop           => \&terminate,

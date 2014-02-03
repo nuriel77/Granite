@@ -113,7 +113,6 @@ sub verify_client_ssl {
 sub sslify_getsocket { SSLify_GetSocket( shift ) }
 
 
-
 no Moose;
 
 

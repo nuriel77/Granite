@@ -5,11 +5,7 @@ use Moose::Role;
 sub load_module {
     my $package = shift;
     my $err;
-
-    eval {
-        load $package;
-        $package->import();
-    };
+    eval { load $package };
     $err = $@;
     return $err ? $err : undef;
 }
