@@ -20,7 +20,7 @@ NAME=granite
 DESC="$NAME daemon"
 USER=granite
 GROUP=granite
-WORKDIR=/home/clustervision/granite
+WORKDIR=/home/nuriel/granite
 PIDDIR=/var/run/granite
 PIDFILE=$PIDDIR/$NAME.pid
 

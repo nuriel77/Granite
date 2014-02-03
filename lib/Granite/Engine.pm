@@ -137,9 +137,9 @@ sub child_sessions {
 
 sub handle_default {
     my ($event, $args) = @_[ARG0, ARG1];
-    $log->logdie(
-      "Session ", $_[SESSION]->ID,
-      " caught unhandled event $event with (@$args).\n"
+    $log->logconfess(
+      'Session [ ' . $_[SESSION]->ID .
+      " ] caught unhandled event '$event' with (@$args)"
     );
 }
 
