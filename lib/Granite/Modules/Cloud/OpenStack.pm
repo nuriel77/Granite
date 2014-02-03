@@ -42,8 +42,6 @@ sub get_all_instances { shift->compute->get_servers(detail => 1) }
 
 sub get_all_hypervisors { shift->compute->get_hypervisors(detail => 1) }
 
-sub get_resouces_stats { shift->compute->get_hypervisors_stats(detail => 1) }
-
 __PACKAGE__->meta->make_immutable(inline_constructor => 0);
 
 =head1 AUTHOR

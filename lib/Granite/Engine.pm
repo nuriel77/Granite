@@ -72,9 +72,9 @@ sub _init {
     $self->queue( Granite::Component::Scheduler::Queue->new );
 
     my $cloud = $self->{modules}->{cloud}->{ (keys %{$self->{modules}->{cloud}})[0] };
-#    warn Dumper $cloud->get_all_instances;
-#    warn Dumper $cloud->get_all_hypervisors;
-    warn Dumper $cloud->get_resouces_stats;
+    warn Dumper $cloud->get_all_instances;
+    warn Dumper $cloud->get_all_hypervisors;
+
 
     $log->info('Starting POE sessions');
 
