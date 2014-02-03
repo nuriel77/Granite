@@ -5,6 +5,7 @@ use Socket;
 use Cwd 'getcwd';
 use Scalar::Util 'looks_like_number';
 use Sys::Hostname;
+use Data::Dumper;
 use Moose;
 use namespace::autoclean;
 use POE::Component::SSLify qw( SSLify_Options SSLify_GetCTX SSLify_GetCipher SSLify_GetSocket);
@@ -41,13 +42,15 @@ before 'run' => sub {
 };
 
 sub run {
-    ($log, $debug) = @_[ ARG0, ARG1 ];
 
+#    POE::Kernel->stop();
+ #   print STDERR "Worker forked\n";
+
+    ($log, $debug) = @_[ ARG0, ARG1 ];
     $log->debug('[ ' . $_[SESSION]->ID() . ' ] Initializing Granite::Component::Server')
         if $debug;
 
     $disable_ssl = $ENV{GRANITE_DISABLE_SSL} || $Granite::cfg->{server}->{disable_ssl};
-
     if ( $unix_socket
         && ( $Granite::cfg->{server}->{port} || $Granite::cfg->{server}->{bind} )
     ){
@@ -228,13 +231,21 @@ sub _verify_client {
     my $socket = $heap->{server}->{$wheel_id}->{socket};
     my ( $remote_ip, $remote_port );
     
+    # If not a socket, get remote ip+port
+    # ===================================
     unless ( $unix_socket ){
         $remote_ip = $heap->{server}->{$wheel_id}->{remote_ip};
         $remote_port = $heap->{server}->{$wheel_id}->{remote_port};
 
         # Check SSL if enabled
+        # =====================
         unless ( $disable_ssl ) {
-            _verify_client_ssl($wheel_id, $socket, $canwrite, $_[SESSION]->ID() );
+            # Verify client ssl
+            # =================
+            unless ( _verify_client_ssl($kernel, $heap, $wheel_id, $socket, $canwrite, $_[SESSION]->ID() ) ){
+                $kernel->yield( "disconnect" => $wheel_id );
+                return;
+            }
         }
     }
 
@@ -298,37 +309,39 @@ sub _get_remote_address {
 }
 
 sub _verify_client_ssl {
-    my ( $wheel_id, $socket, $canwrite, $sessionId ) = @_;
-    my ( $kernel, $heap ) = @_[ KERNEL, HEAP ];
+    my ( $kernel, $heap, $wheel_id, $socket, $canwrite, $sessionId ) = @_;
 
     $log->info('[ '. $sessionId . ' ]->(' . $wheel_id . ') Verifying Server_SSLify_NonBlock_SSLDone on socket');
-    unless ( Server_SSLify_NonBlock_SSLDone($socket) ) {
-        $log->error('[ ' . $wheel_id . ' ] SSL Handshake failed');
-        $kernel->yield( "disconnect" => $wheel_id );
-        return;
-    }
 
-    my $ctx = SSLify_GetCTX( $socket ); 
-    $log->debug('[ '. $sessionId . ' ]->('. $wheel_id  .') Have global CTX: ' . SSLify_GetCTX()
-              . ', client CTX: ' . $ctx
-              . ', client cipher: ' . SSLify_GetCipher($socket)
-    ) if $debug;
+    my $test;
+    eval { $test = Server_SSLify_NonBlock_SSLDone($socket); };
+    if ( $@ or !$test ){
+        $log->error('[ ' . $wheel_id . ' ] SSL Handshake failed ' . ( $@ ? $@ : '' ));
+        return undef;
+    }
 
     # Check certificate provided by client
-    if ( $ENV{GRANITE_CLIENT_CERTIFICATE} and !( Server_SSLify_NonBlock_ClientCertificateExists($socket) ) ) {
-        $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] NoClientCertExists\n" )
-            if $canwrite;
-        $log->error('[ '. $sessionId . ' ]->(' . $wheel_id . ') NoClientCertExists');
-        $kernel->yield( "disconnect" => $wheel_id );
-        return;
+    if ( $ENV{GRANITE_CLIENT_CERTIFICATE} ){
+        my $test;
+        eval { $test = Server_SSLify_NonBlock_ClientCertificateExists($socket); };
+        if ( $@ or !$test ) {
+            $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] NoClientCertExists\n" )
+                if $canwrite;
+            $log->error('[ '. $sessionId . ' ]->(' . $wheel_id . ') NoClientCertExists');
+            return undef;
+        }
     }
     # check certificate valid
-    elsif ( $ENV{GRANITE_VERIFY_CLIENT} and !( Server_SSLify_NonBlock_ClientCertIsValid($socket) ) ) {
-        $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] ClientCertInvalid\n" )
-            if $canwrite;
-        $log->error( '[ '. $sessionId . ' ]->(' . $wheel_id . ') ClientCertInvalid' );
-        $kernel->yield( "disconnect" => $wheel_id );
-        return;
+    if ( $ENV{GRANITE_VERIFY_CLIENT} ){
+        my $test;
+        eval { $test = Server_SSLify_NonBlock_ClientCertIsValid($socket); };
+        if ( $@ or !$test ){
+            $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] ClientCertInvalid\n" )
+                if $canwrite;
+            $log->error( '[ '. $sessionId . ' ]->(' . $wheel_id . ') ClientCertInvalid ' . ($@ ? $@ : '') );
+            return undef;
+        }
+
     }
 	# TODO: Patch Net::SSLeay or try dump certificate and verify via openssl class
     # check certificate against CRL
@@ -341,6 +354,7 @@ sub _verify_client_ssl {
     #}
     #warn "XXXXXXX " . Server_SSLify_NonBlock_GetClientCertificateIDs($socket) . "\n";
 
+    return 1;
 }
 
 sub _sslify_options {

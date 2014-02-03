@@ -109,8 +109,8 @@ sub parent_got_result {
 
     my $in_reservation_queue = grep { $_->{partition} eq $reservation_queue } @{$data};
 
-    my $sess = $_[KERNEL]->alias_resolve('engine');
-    $_[KERNEL]->post( $sess , 'process_res_q' );
+#    my $sess = $_[KERNEL]->alias_resolve('engine');
+#    $_[KERNEL]->post( $sess , 'process_res_q' );
     #warn "$in_res jobs in reservation queue\n";
          #$output .= '' . ( join ":", ( $_->{job_id}, $_->{priority}, $_->{num_cpus}, $_->{num_nodes}) ) . ';'
          #   if $_->{partition} eq $reservation_queue;

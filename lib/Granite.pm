@@ -7,12 +7,12 @@ use Log::Log4perl qw(:easy);
 use Granite::Engine;
 use Granite::Utils::ConfigLoader;
 
-use vars qw( $cfg $debug $log );
+use vars qw( $VERSION $cfg $debug $log );
 use strict 'vars';
 
 use 5.14.2;
 
-our $VERSION = 1.0;
+$VERSION = 1.0;
 
 =head1 NAME
 
@@ -51,12 +51,14 @@ sub init {
     $SIG{INT} = \&QUIT;
 
     # Load config to $Granite::cfg (global)
+    # =====================================
     my $config_file = $ENV{GRANITE_CONFIG} || './conf/granite.conf';
     $cfg = Granite::Utils::ConfigLoader::load_app_config($config_file);
 
     $debug = $ENV{GRANITE_FOREGROUND} ? $ENV{GRANITE_DEBUG} : $cfg->{main}->{debug};
 
     # Load log config
+    # ===============
     my $log_config = $Granite::cfg->{main}->{log_config} || 'conf/granite.conf';
 
     Log::Log4perl::Config->allow_code(0);
@@ -64,15 +66,17 @@ sub init {
     $log = Log::Log4perl->get_logger(__PACKAGE__);
 
     # Init engine
+    # ===========
     Granite::Engine->new( logger => $log, debug => $debug )->run;
+
     exit;
 }
 
-sub QUIT
-{
+sub QUIT {
     $log->info("Termination signal detected\n");
     exit 1;
 }
+
 
 =head1 AUTHOR
 
