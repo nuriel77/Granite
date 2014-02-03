@@ -35,7 +35,7 @@ sub run {
     $log->debug( '[ ' . $_[SESSION]->ID()
                 . '] QueueWatcher parent session created with ID: '
                 . $parent_session->ID() );
-
+    return;
 }
 
 sub parent_start {

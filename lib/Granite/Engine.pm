@@ -76,14 +76,14 @@ sub _init {
 
             },
             _child          => \&child_sessions,
-            init_server     => \&Granite::Component::Server::run,
+            init_server     => sub { Granite::Component::Server->new()->run( $_[SESSION]->ID() ) },
             process_res_q   => \&Granite::Component::Scheduler::Queue::process_queue,
             watch_queue     => \&Granite::Component::Scheduler::Queue::Watcher::run,
             _default        => \&handle_default,
             _stop           => \&terminate,
         },
         heap => { scheduler => $self->modules->{scheduler} }
-    );
+    ) or $log->logcroak('[ ' . $_[SESSION]->ID() .  " ] can't POE::Session->create: $!" );
 
     $poe_kernel->run();
 
