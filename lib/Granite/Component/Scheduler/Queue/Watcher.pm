@@ -27,9 +27,7 @@ sub run {
                 _default => \&Granite::Engine::handle_default,
                 result => \&parent_got_result,
             },
-            heap => {
-                scheduler => $scheduler->{(keys %{$scheduler})[0]},
-            }
+            heap => { scheduler => $scheduler->{(keys %{$scheduler})[0]} }
         ) or $log->logcroak('[ ' . $_[SESSION]->ID() .  " ] can't POE::Session->create: $!" );
     
     $log->debug( '[ ' . $_[SESSION]->ID()
@@ -38,9 +36,7 @@ sub run {
     return;
 }
 
-sub parent_start {
-    &create_child;
-}
+sub parent_start { &create_child; }
 
 sub parent_spawn_child {
     my ($heap, $kernel, $operation, $child) = @_[HEAP, KERNEL, ARG0, ARG1];
@@ -109,9 +105,9 @@ sub parent_got_result {
 
     my $in_reservation_queue = grep { $_->{partition} eq $reservation_queue } @{$data};
 
-#    my $sess = $_[KERNEL]->alias_resolve('engine');
-#    $_[KERNEL]->post( $sess , 'process_res_q' );
-    #warn "$in_res jobs in reservation queue\n";
+    my $sess = $_[KERNEL]->alias_resolve('engine');
+    $_[KERNEL]->post( $sess , 'process_res_q' );
+     #warn "$in_res jobs in reservation queue\n";
          #$output .= '' . ( join ":", ( $_->{job_id}, $_->{priority}, $_->{num_cpus}, $_->{num_nodes}) ) . ';'
          #   if $_->{partition} eq $reservation_queue;
 

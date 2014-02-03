@@ -101,7 +101,7 @@ sub BUILD {
     $granite_crl     = $Granite::cfg->{server}->{crl}    ? getcwd . '/' . $Granite::cfg->{server}->{crl}    : undef;
     $granite_cipher  = $Granite::cfg->{server}->{cipher}            ||'DHE-RSA-AES256-GCM-SHA384:AES256-SHA';
 
-    $ENV{GRANITE_CLIENT_CERTIFICATE} = 1 if $ENV{GRANITE_VERIFY_CLIENT};
+    $ENV{GRANITE_CLIENT_CERTIFICATE}                = 1 if $ENV{GRANITE_VERIFY_CLIENT};
     $Granite::cfg->{server}->{client_certificate} ||= $Granite::cfg->{server}->{verify_client}; 
 
     return $self;
@@ -123,7 +123,12 @@ sub run {
     $log->debug('[ ' . $sessionId . ' ] Initializing Granite::Component::Server')
         if $debug;
 
+    # Set the ssl disabled variable
+    # =============================
     $disable_ssl = $ENV{GRANITE_DISABLE_SSL} || $Granite::cfg->{server}->{disable_ssl};
+
+    # Display configuration warning
+    # =============================
     if ( $self->_has_unix_socket
         && ( $Granite::cfg->{server}->{port} || $Granite::cfg->{server}->{bind} )
     ){
@@ -164,7 +169,8 @@ sub run {
                     Reuse        => 'yes',
                     SuccessEvent => 'client_accept',
                     FailureEvent => 'server_error',
-                );
+                ) or $log->logcroak('[ ' . $_[SESSION]-ID() .  " ] can't POE::Wheel::SocketFactory->new: $!" );
+
             },
             client_accept     => \&_client_accept,
             client_input      => \&_client_input,
@@ -186,6 +192,7 @@ sub run {
     }
 
 }
+
 
 
 =head3 server_error

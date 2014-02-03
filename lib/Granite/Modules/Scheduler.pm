@@ -1,6 +1,4 @@
 package Granite::Modules::Scheduler;
-use strict;
-use warnings;
 use Moose::Role;
 
 has 'name'      => ( is => 'ro', isa => 'Str', required => 1);
