@@ -1,7 +1,5 @@
 package Granite::Engine::Daemonize;
-use strict;
-use warnings;
-use File::Slurp 'read_file', 'write_file';
+use File::Slurp qw(read_file write_file);
 use Proc::ProcessTable;
 use POSIX 'setsid';
 use Carp qw(cluck confess);

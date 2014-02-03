@@ -1,6 +1,4 @@
 package Granite::Engine;
-use strict;
-use warnings;
 use Granite::Engine::Daemonize;
 use Granite::Component::Server;
 use Granite::Component::Scheduler::Queue;
@@ -15,6 +13,21 @@ use Moose;
 
 use namespace::autoclean;
 use vars qw($log $debug $daemon);
+
+=head1 NAME
+
+Granite::Engine
+
+=head1 SYNOPSYS
+
+Loaded by granite main script
+
+=head1 DESCRIPTION
+
+Used as the controller of the application
+
+=cut
+
 
 has modules   => ( is => 'rw', isa => 'HashRef', default => sub {{}} );
 has queue     => ( is => 'rw', isa => 'Object' );
@@ -153,7 +166,7 @@ sub handle_default {
     );
 }
 
-=comment
+=head2 COMMENT
 #
 #   Temporarily here:
 #
@@ -178,5 +191,11 @@ sub _get_node_list {
 =cut
 
 __PACKAGE__->meta->make_immutable(inline_constructor => 0);
+
+=head1 AUTHOR
+
+Nuriel Shem-Tov
+
+=cut
 
 1;

@@ -34,7 +34,7 @@ around 'new' => sub {
 
 sub get_instances {
     my $self = shift;
-    return $self->compute->get_servers;
+    return $self->compute->get_servers(detail => 1);
 }
 
 __PACKAGE__->meta->make_immutable(inline_constructor => 0);

@@ -1,6 +1,4 @@
 package Granite::Component::Server;
-use strict;
-use warnings;
 use Socket;
 use Cwd 'getcwd';
 use File::Basename 'dirname';
