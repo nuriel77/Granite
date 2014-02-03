@@ -1,6 +1,4 @@
 package Granite::Component::Scheduler::Queue;
-use strict;
-use warnings;
 use Data::Dumper::Concise;
 use POE;
 use POE::Queue::Array;
