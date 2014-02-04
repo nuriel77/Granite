@@ -78,7 +78,6 @@ has port => (
     isa         => 'Port',       
     clearer     => '_undef_port',
     predicate   => '_has_port',
-    lazy        => 1,
     default     => 21212
 );
 
@@ -492,7 +491,7 @@ sub _sanitize_input {
 
     return $input if $input eq '';
 
-    unless ($input =~ /^[a-zA-Z0-9_\-\.,\!\%\$\^\&\(\)\[\]\{\}\+\=\@\?]+$/){
+    unless ($input =~ /^[a-z0-9_\-\.,\!\%\$\^\&\(\)\[\]\{\}\+\=\@\?\ ]+$/i){
         $log->warn( '[ '. $sessionId . ' ]->(' . $wheel_id . ') Client input contains invalid characters, erasing content.' );
         $input = '';
     }
