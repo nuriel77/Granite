@@ -329,7 +329,9 @@ one second and call _close_delayed
 sub _client_disconnect {
     my ( $heap, $kernel, $wheel_id ) = @_[ HEAP, KERNEL, ARG0 ];
 
-    $log->debug('[ ' . $_[SESSION]->ID() . " ]->($wheel_id) At _client_disconnect") if $debug;
+    $log->debug('[ ' . $_[SESSION]->ID() . " ]->($wheel_id) At _client_disconnect")
+        if $debug;
+
     $log->info('[ ' . $_[SESSION]->ID() . ' ]->(' . $wheel_id . ") Client disconnecting (delayed).");
 
     $kernel->delay( close_delayed => 1, $wheel_id )
@@ -407,10 +409,16 @@ sub _client_accept {
     # If TCP, save remote address details
     # ===================================
     unless ( $unix_socket ) {
-        my ( $remote_ip, $remote_port ) = _get_remote_address($socket, $_[SESSION]->ID(), $io_wheel->ID()); 
-        $heap->{server}->{ $io_wheel->ID() }->{remote_ip} = $remote_ip;
-        $heap->{server}->{ $io_wheel->ID() }->{remote_port} = $remote_port;
-        $log->info( '[ ' . $_[SESSION]->ID() . ' ]->(' . $io_wheel->ID() . ') Remote Addr: ' . $remote_ip . ':' . $remote_port );    
+        my ( $remote_ip, $remote_port ) =
+            _get_remote_address($socket, $_[SESSION]->ID(), $io_wheel->ID()); 
+
+        $heap->{server}->{ $io_wheel->ID() } = {
+            remote_ip => $remote_ip,
+            remote_port => $remote_port
+        };
+
+        $log->info( '[ ' . $_[SESSION]->ID() . ' ]->(' . $io_wheel->ID()
+                    . ') Remote Addr: ' . $remote_ip . ':' . $remote_port );    
     }
 
     # Store the wheel ID and the
@@ -431,7 +439,9 @@ sub _verify_client {
     my ( $heap, $kernel, $input, $wheel_id, $canwrite ) 
         = @_[ HEAP, KERNEL, ARG0, ARG1, ARG2 ];
 
-    $log->debug('[ ' . $_[SESSION]->ID() . " ]->($wheel_id) At _verify_client") if $debug;
+    $log->debug('[ ' . $_[SESSION]->ID() . " ]->($wheel_id) At _verify_client")
+        if $debug;
+
     my $socket = $heap->{server}->{$wheel_id}->{socket};
     my ( $remote_ip, $remote_port );
     
@@ -446,21 +456,28 @@ sub _verify_client {
         unless ( $disable_ssl ) {
             # Verify client ssl
             # =================
-            unless ( verify_client_ssl($kernel, $heap, $wheel_id, $socket, $canwrite, $_[SESSION]->ID() ) ){
+            unless (
+                verify_client_ssl(
+                    $kernel, $heap, $wheel_id, $socket, $canwrite, $_[SESSION]->ID()
+                )
+            ){
                 $kernel->yield( "disconnect" => $wheel_id );
                 return;
             }
         }
     }
 
-    $log->info('[ ' . $_[SESSION]->ID() . " ]->($wheel_id) Verifying password\n");
+    $log->info('[ ' . $_[SESSION]->ID()
+            . " ]->($wheel_id) Verifying password\n");
 
     # TODO: Add authentication module
     if ( $input ne 'system'  ){
-        $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] Password authentication failure.\n" )
-            if $canwrite;
-            $kernel->yield( "disconnect" => $wheel_id );
-            return;
+        $heap->{server}->{$wheel_id}->{wheel}->put(
+            "[" . $wheel_id . "] Password authentication failure.\n"
+        ) if $canwrite;
+
+        $kernel->yield( "disconnect" => $wheel_id );
+        return;
     }
 
     # Register client
@@ -472,10 +489,12 @@ sub _verify_client {
             registered => time(),
           };
 
-    $log->info('[ ' . $_[SESSION]->ID() . ' ]->(' . $wheel_id . ") Client authenticated");
+    $log->info('[ ' . $_[SESSION]->ID() . ' ]->('
+                . $wheel_id . ") Client authenticated");
 
-    $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] Authenticated!\n" )
-        if $canwrite;
+    $heap->{server}->{$wheel_id}->{wheel}->put(
+        "[". $wheel_id . "] Authenticated!\n"
+    ) if $canwrite;
 
 }
 
@@ -492,11 +511,13 @@ sub _sanitize_input {
     return $input if $input eq '';
 
     unless ($input =~ /^[a-z0-9_\-\.,\!\%\$\^\&\(\)\[\]\{\}\+\=\@\?\ ]+$/i){
-        $log->warn( '[ '. $sessionId . ' ]->(' . $wheel_id . ') Client input contains invalid characters, erasing content.' );
+        $log->warn( '[ '. $sessionId . ' ]->(' . $wheel_id
+                . ') Client input contains invalid characters, erasing content.' );
         $input = '';
     }
     else {
-        $log->info('[ '. $sessionId . ' ]->(' . $wheel_id . ") Got client input: '" . $input . "'");
+        $log->info('[ '. $sessionId . ' ]->(' . $wheel_id
+                    . ") Got client input: '" . $input . "'");
     }
     return $input;
 }
@@ -515,14 +536,20 @@ sub _get_remote_address {
     my ($remote_port, $addr) = ( 'unknown', 'n/a' );
     eval { 
         ($remote_port, $addr) =
-            unpack_sockaddr_in( getpeername ( $disable_ssl ? $socket : sslify_getsocket ($socket) ) );
+            unpack_sockaddr_in(
+                getpeername (
+                    $disable_ssl ? $socket : sslify_getsocket ($socket)
+                )
+            );
     };
     if ( $@ ) {
-        $log->logcluck('[ '. $sessionId . ' ]->(' . $wheel_id . ") Error getting remote peer name: $@");
+        $log->logcluck('[ '. $sessionId . ' ]->('
+                        . $wheel_id . ") Error getting remote peer name: $@");
     }
     else {
         eval { $remote_ip = inet_ntoa( $addr ) };
-        $log->logcluck('[ '. $sessionId . ' ]->(' . $wheel_id . ") Error getting ip address: $@") if $@;
+        $log->logcluck('[ '. $sessionId . ' ]->('
+                        . $wheel_id . ") Error getting ip address: $@") if $@;
     }
     return wantarray ? ( $remote_ip, $remote_port ) : "$remote_ip:$remote_port";
 }

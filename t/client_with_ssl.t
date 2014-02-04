@@ -25,8 +25,9 @@ my $capath = $ENV{GRANITE_CA_PATH}      || 'conf/ssl';
 my $cacert = $ENV{GRANITE_CA_CERT}      || $capath.'/ca.crt';
 my $crt    = $ENV{GRANITE_CERT}         || 'conf/ssl/client01.crt';
 my $key    = $ENV{GRANITE_KEY}          || 'conf/ssl/client01.key';
+my $password = 'system';
 
-my $test_connections = 10;
+my $test_connections = $ENV{GRANITE_TEST_MAX_CONNECTIONS} || 10;
 
 #
 # We plan 4 tests per client connection + 3 base tests
@@ -52,13 +53,13 @@ my $run = sub {
                     SSL_key_file => $key,
 
                     # certificate verification
-                    #SSL_verify_mode => SSL_VERIFY_PEER,
-                    SSL_verify_mode => SSL_VERIFY_NONE,
                     #SSL_ca_path => $capath,
-                    #SSL_ca_file => $cacert,
+                    SSL_ca_file => $cacert,
+                    SSL_verify_mode => SSL_VERIFY_PEER,
+                    #SSL_verify_mode => SSL_VERIFY_NONE,
 
                     # easy hostname verification
-                    #SSL_verifycn_name => $servername,
+                    SSL_verifycn_name => $servername,
                     #SSL_verifycn_scheme => 'http',
 
                     # SNI support
@@ -66,8 +67,8 @@ my $run = sub {
                 );
                 my $err = "$!, $SSL_ERROR" if $SSL_ERROR;
 
-                $_[HEAP]->{clients}->{$_[SESSION]->ID()}->{socket} = $socket;
                 if ( $socket and ref $socket eq 'IO::Socket::SSL' ){
+                    $_[HEAP]->{clients}->{$_[SESSION]->ID()}->{socket} = $socket;
                     $_[KERNEL]->yield('start_io_socket_ssl', $socket);
                 }
                 else {
@@ -76,9 +77,9 @@ my $run = sub {
             },
             start_io_socket_ssl       => sub { 
                 my ($kernel, $heap, $socket ) = @_[ KERNEL, HEAP, ARG0 ];
-                warn "Session " . $_[SESSION]->ID() . " is active\n" if DEBUG;
+                pass ( "Session " . $_[SESSION]->ID() . " is active" );
 
-                print {$socket} "system\n";
+                print {$socket} "$password\n";
                 if ( my $input = <$socket> ){
                     chomp($input);
                     if ( $input =~ /^.*Authenticated!/ ){ 
@@ -95,7 +96,7 @@ my $run = sub {
             },
             client_is_authenticated => sub {
                 my ($kernel, $heap, $socket ) = @_[ KERNEL, HEAP, ARG0 ];
-                warn "Authentication successful\n" if DEBUG;
+                pass ( "Authentication successful" );
                 $_[KERNEL]->yield('client_server_can_readwrite', $socket );
             },
             client_server_can_readwrite     => sub {
@@ -108,7 +109,7 @@ my $run = sub {
                         $_[KERNEL]->delay('_stop' => 1, $_[SESSION]->ID() );
                     }
                     else {
-                        warn "Unexpected reply from server: '$reply'\n";
+                        diag ( "Unexpected reply from server: '$reply'" );
                         $_[KERNEL]->post($_[SESSION], 'failed_readwrite');
                     }
                 }
