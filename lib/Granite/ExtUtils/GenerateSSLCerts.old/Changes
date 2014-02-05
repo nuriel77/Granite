@@ -1,6 +1,0 @@
-Revision history for Perl extension GenerateSSLCerts.
-
-0.01  Wed Feb  5 11:13:01 2014
-	- original version; created by h2xs 1.23 with options
-		-A -n GenerateSSLCerts -L/usr/lib -lssl -lcrypto
-
