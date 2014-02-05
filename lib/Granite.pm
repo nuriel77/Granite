@@ -14,25 +14,26 @@ use 5.14.2;
 
 $VERSION = 1.0;
 
+
 =head1 NAME
 
-Granite - Scheduling HPC in the Cloud 
+  Granite - Scheduling HPC in the Cloud 
 
 =head1 VERSION
 
-Version 1.0 of the application.
+  Version 1.0 of the application.
 
-=head1 SYNOPSYS
+=head1 SYNOPSIS
 
-scripts/granited runs the application, optionally use provided rc init script.
+  scripts/granited runs the application, optionally use provided rc init script.
 
 =over
 
 =item *
 
-This application requires Slurm compiled from source code with its perl API,
+  This application requires Slurm compiled from source code with its perl API,
 
-and a cloud API module (Net::OpenStack::Compute by default)
+  and a cloud API module (Net::OpenStack::Compute by default)
 
 =back
 
@@ -49,6 +50,7 @@ and a cloud API module (Net::OpenStack::Compute by default)
 sub init {
 
     $SIG{INT} = \&QUIT;
+    $SIG{__DIE__} = \&DEATH;
 
     # Load config to $Granite::cfg (global)
     # =====================================
@@ -77,14 +79,24 @@ sub QUIT {
     exit 1;
 }
 
+sub DEATH {
+    return unless defined $^S and $^S == 0; # Ignore errors in eval
+    my ($error) = @_;
+    chomp $error;
+    print "die: $error\n";
+
+}
+
 
 =head1 AUTHOR
 
-Nuriel Shem-Tov
+  Nuriel Shem-Tov
 
 =head1 LICENSE
 
-This software is distributed under the GPL license.
+  This library is free software; you can redistribute it and/or modify it under the same terms as Perl itself, 
+
+  either Perl version 5.14.2 or, at your option, any later version of Perl 5 you may have available.
 
 =cut
 

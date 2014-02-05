@@ -30,9 +30,9 @@ my $password = 'system';
 my $test_connections = $ENV{GRANITE_TEST_MAX_CONNECTIONS} || 10;
 
 #
-# We plan 4 tests per client connection + 3 base tests
+# We plan 6 tests per client connection + 3 base tests
 #
-plan tests => 3 + ( 4 * $test_connections);
+plan tests => 3 + ( 6 * $test_connections);
 
 $_[HEAP]->{clients} = {};
 

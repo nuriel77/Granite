@@ -11,7 +11,7 @@ Uses the subclass of Net::OpenStack::Compute
 
 (Granite::Modules::Cloud::OpenStack::Compute)
 
-=head1 SYNOPSYS
+=head1 SYNOPSIS
 
 See configuration file for more details
 
