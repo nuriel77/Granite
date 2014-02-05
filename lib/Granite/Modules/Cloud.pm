@@ -7,7 +7,7 @@ This package provides an interface for Cloud modules.
 
 The default module is currently OpenStack
 
-=head1 SYNOPSYS
+=head1 SYNOPSIS
 
 use Moose;
 with 'Granite::Modules::Cloud'

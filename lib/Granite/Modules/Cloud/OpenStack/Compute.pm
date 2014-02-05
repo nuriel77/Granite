@@ -12,7 +12,7 @@ extends 'Net::OpenStack::Compute';
 
 Subclass of Net::OpenStack::Compute
 
-=head1 SYNOPSYS
+=head1 SYNOPSIS
 
 See http://search.cpan.org/~ironcamel/Net-OpenStack-Compute-1.1002/lib/Net/OpenStack/Compute.pm
 

@@ -18,7 +18,7 @@ use vars qw($log $debug $daemon);
 
 Granite::Engine
 
-=head1 SYNOPSYS
+=head1 SYNOPSIS
 
 Loaded by granite main script
 
