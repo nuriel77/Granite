@@ -1,8 +1,8 @@
 package Granite;
-use warnings;
 use strict;
+use warnings;
 use Sys::Hostname;
-use Carp 'confess';
+use Carp 'croak';
 use Log::Log4perl qw(:easy);
 use Granite::Engine;
 use Granite::Utils::ConfigLoader;
@@ -46,9 +46,8 @@ $VERSION = 1.0;
 
 =cut
 
-
-sub init {
-
+sub new {
+ 
     $SIG{INT} = \&QUIT;
     $SIG{__DIE__} = \&DEATH;
 
@@ -67,8 +66,17 @@ sub init {
     Log::Log4perl::init($log_config);
     $log = Log::Log4perl->get_logger(__PACKAGE__);
 
-    # Init engine
-    # ===========
+    my $self = {
+        logger => $log,
+        cfg    => $cfg
+    };
+    bless $self, shift;
+}
+
+sub init {
+
+    # Run engine
+    # ==========
     Granite::Engine->new( logger => $log, debug => $debug )->run;
 
     exit;

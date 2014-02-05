@@ -1,5 +1,6 @@
 package Granite::Engine::Logger;
 use Log::Log4perl;
+use Log::Log4perl::Level;
 use Moose::Role;
 
 sub set_logger_stdout {
@@ -20,6 +21,10 @@ sub set_logger_stdout {
     shift->add_appender( $stdout_appender );
 }
 
+sub silent_logger { shift->level('OFF'); }
+
+
 no Moose;
+
 
 1;

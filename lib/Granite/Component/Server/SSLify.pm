@@ -16,11 +16,9 @@ sub sslify_options {
     for ( $granite_key, $granite_crt ){
         $Granite::log->logcroak("Cannot find '$_'. Verify existance and permissions.") unless -f $_;
     }
-
-    if ( $Granite::cfg->{server}->{client_certificate}
-        && ( !$granite_cacrt or ! -f $granite_cacrt )
-    ){
-        $Granite::log->logcroak("Missing CA certificate. Verify existance and permissions.");
+    if ( $Granite::cfg->{server}->{client_certificate} =~ /yes/i ){
+        $Granite::log->logcroak("Missing CA certificate. Verify existance and permissions.")
+            if ( !$granite_cacrt or ! -f $granite_cacrt );
     }
 
     eval { SSLify_Options( $granite_key, $granite_crt ) };
@@ -42,8 +40,10 @@ sub sslify_socket {
             SSLify_GetCTX(),
             $socket,
             {
-                clientcertrequest    => $ENV{GRANITE_REQUEST_CLIENT_CERTIFICATE} || $Granite::cfg->{server}->{client_certificate},
-                noblockbadclientcert => $ENV{GRANITE_VERIFY_CLIENT} || $Granite::cfg->{server}->{verify_client},
+                clientcertrequest    => $ENV{GRANITE_REQUEST_CLIENT_CERTIFICATE}
+                    || ( $Granite::cfg->{server}->{client_certificate} =~ /yes/i ? 1 : 0 ),
+                noblockbadclientcert => $ENV{GRANITE_VERIFY_CLIENT}
+                    || ( $Granite::cfg->{server}->{verify_client} =~ /yes/i ? 1 : 0 ),
                 getserial            => $granite_crl ? 1 : 0,
                 debug                => 0 #$debug
             }

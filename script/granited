@@ -7,4 +7,5 @@ use lib "$FindBin::Bin/../lib";
 use Granite;
 
 $0 = basename($0);
-Granite->init();
+Granite->new()->init;
+

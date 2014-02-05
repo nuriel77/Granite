@@ -38,7 +38,7 @@ sub run {
     my $self = shift;
     ( $log, $debug ) = ($self->logger, $self->debug);
 
-    if ( !$ENV{GRANITE_FOREGROUND} && $Granite::cfg->{main}->{daemonize} ){
+    if ( !$ENV{GRANITE_FOREGROUND} && $Granite::cfg->{main}->{daemonize} =~ /yes/i ){
         # Daemonize
         # =========
         Granite::Engine::Daemonize->new(
@@ -95,7 +95,7 @@ sub _init {
 
                 # Server
                 # ======
-                unless ( $ENV{GRANITE_NO_TCP} or $Granite::cfg->{server}->{disable} ){
+                unless ( $ENV{GRANITE_NO_TCP} or $Granite::cfg->{server}->{disable} =~ /yes/i ){
                     $kernel->yield("init_server", $log, $debug );
                 }
 
