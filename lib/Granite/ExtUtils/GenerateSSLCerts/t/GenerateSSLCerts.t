@@ -5,7 +5,6 @@ use constant MyTempLib => $ENV{GRANITE_TEMP_LIB} || './blib/lib';
 use lib MyTempLib;
 
 my $num_tests = 4;
-
 $num_tests -= 2 if $ENV{GRANITE_KEEP_KEYCERT_FILES};
 
 plan tests => $num_tests;
@@ -25,8 +24,9 @@ BEGIN {
     if(  $require  ) {
         exec 'env', $^X, $0, @ARGV;
     }
-    use_ok( 'GenerateSSLCerts');
 }
+
+use_ok( 'GenerateSSLCerts');
 
 my $key_file  = $ENV{GRANITE_NEW_KEY_FILE} || '/tmp/granite.test.key';
 my $cert_file = $ENV{GRANITE_NEY_CRT_FILE} || '/tmp/granite.test.crt';
@@ -44,3 +44,6 @@ unless ( $ENV{GRANITE_KEEP_KEYCERT_FILES} ){
     ok ( unlink( $key_file ) , 'Key file removed' );
     ok ( unlink( $cert_file ), 'Certificate file removed' );
 }
+
+done_testing();
+
