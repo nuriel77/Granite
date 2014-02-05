@@ -97,7 +97,7 @@ has bind        => (
 
 has unix_socket => (
     is => 'rw',
-    isa => 'UnixSocket',
+    isa => 'Str',
     clearer   => '_undef_unix_socket',
     predicate => '_has_unix_socket',
     required => 0
@@ -119,6 +119,19 @@ has host_name   => (
     is => 'rw',
     isa => 'Str',
     default => hostname() 
+);
+
+=item * L<mysession>
+=cut
+
+has mysession => (
+    is => 'ro',
+    isa => 'Object',
+    writer => '_set_mysession',
+    clearer => '_unset_mysession',
+    predicate => '_has_mysession',
+    lazy => 1,
+    default => sub {{}},
 );
 
 =back
@@ -155,8 +168,9 @@ sub BUILD {
 
     $ENV{GRANITE_CLIENT_CERTIFICATE}
         = 1 if $ENV{GRANITE_VERIFY_CLIENT};
+
     $Granite::cfg->{server}->{client_certificate}
-        ||= $Granite::cfg->{server}->{verify_client}; 
+        ||= ( $Granite::cfg->{server}->{verify_client} ? 'yes' : 'no' ); 
 
     return $self;
 };
@@ -179,8 +193,7 @@ sub run {
 
     # Set the ssl disabled variable
     # =============================
-    $disable_ssl = $ENV{GRANITE_DISABLE_SSL}
-        || $Granite::cfg->{server}->{disable_ssl};
+    $disable_ssl = 1 if $ENV{GRANITE_DISABLE_SSL} || $Granite::cfg->{server}->{disable_ssl} =~ /yes/i;
 
     # Display configuration warning
     # =============================
@@ -189,8 +202,8 @@ sub run {
     ){
         $log->warn('[ ' . $sessionId . ' ] Warning: Both unix socket and tcp options are configured.'
                   . ' Unix socket takes precedence.');
-        $self->undef_bind;
-        $self->undef_port;
+        $self->_undef_bind;
+        $self->_undef_port;
     }  
 
     # Set global SSL options
@@ -209,11 +222,7 @@ sub run {
 
         $log->logdie("Access denied on '"
                     . $self->unix_socket . "'. Check permissions."
-        ) unless -w $unix_socket;
-
-        unlink $self->unix_socket
-            or $log->logdie("Cannot unlink old socket '"
-                            . $self->unix_socket . "': $!");
+        ) unless -w $self->unix_socket;
     }
 
     my $session = POE::Session->create(
@@ -223,7 +232,7 @@ sub run {
                 $_[KERNEL]->alias_set('server');
                 $heap->{server_wheel} = POE::Wheel::SocketFactory->new(
                     SocketDomain => $self->_has_unix_socket ? PF_UNIX : AF_INET,
-                    BindAddress  => $self->_has_unix_socket || $self->bind,
+                    BindAddress  => $self->_has_unix_socket ? $self->unix_socket : $self->bind,
                     BindPort     => ( $self->_has_unix_socket ? undef : $self->port ),
                     ListenQueue  => $self->max_clients,
                     Reuse        => 'yes',
@@ -238,11 +247,12 @@ sub run {
             disconnect        => \&_client_disconnect,
             verify_client     => \&_verify_client,
             close_delayed     => \&_close_delayed,
-            server_error      => \&_server_error,
+            server_error      => \&server_error,
+            server_shutdown   => \&_terminate_server,
             client_error      => \&_client_error,
             _default          => \&Granite::Engine::handle_default,
             _stop             => \&server_error,
-        }
+        },
     ) or $log->logcroak('[ ' . $sessionId .  " ] can't POE::Session->create: $!" );
 
     if ( $self->_has_unix_socket ){ 
@@ -255,6 +265,8 @@ sub run {
                     . ' with session ID: ' . $session->ID() );
     }
 
+    $self->_set_mysession($session);
+    return $self;
 }
 
 
@@ -273,6 +285,20 @@ sub server_error {
                 . " ] Server error from session ID "
                 . $_[SENDER]->ID() . ( $errnum ? ": ($errnum) $errstr" : '' ) )
         if looks_like_number($_[SENDER]->ID());
+}
+
+
+=head3 B<_terminate_server>
+
+Shut down the server
+
+=cut
+
+sub _terminate_server {
+    my ( $kernel, $heap ) = @_[ KERNEL, HEAP ];
+    $log->warn('Server shutdown');
+    delete $_[HEAP]->{server};
+    $client_namespace = {};
 }
 
 
@@ -372,6 +398,9 @@ sub _client_input {
         $input = _sanitize_input($_[SESSION]->ID(), $wheel_id, $input);
         $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] Your input: $input\n" )
             if $canwrite;
+
+        $kernel->post($_[SESSION], $input)
+            if ( $input eq 'server_shutdown' );
     }
 }
 

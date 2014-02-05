@@ -3,7 +3,9 @@ use Test::More;
 use File::Copy;
 use lib './lib/Granite/ExtUtils/GenerateSSLCerts/blib/lib';
 
-plan tests => 4;
+my $num_tests = $ENV{GRANITE_KEEP_KEYCERT_FILES} ? 4 : 6;
+
+plan tests => $num_tests;
 
 sub DEBUG { $ENV{GRANITE_DEBUG} }
 
@@ -39,3 +41,10 @@ is (
 
 ok ( -f $key_file, 'check key file exists' );
 ok ( -f $cert_file, 'check certificate file exists' );
+
+unless ( $ENV{GRANITE_KEEP_KEYCERT_FILES} ){
+    ok ( unlink( $key_file ) , 'Key file removed' );
+    ok ( unlink( $cert_file ), 'Certificate file removed' );
+}
+
+done_testing();

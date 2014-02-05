@@ -10,7 +10,18 @@ BEGIN {
 }
 
 
-$| = 1;
+local $| = 1;
+
+
+
+my $pid = fork();
+if( $pid == 0 ){
+    $poe_kernel->stop();
+    $ENV{GRANITE_KEEP_TEST_SERVER_RUNNING} = 1;
+    exec 'GRANITE_KEEP_TEST_SERVER_RUNNING=1 perl t/01_test_server_tcp.t';
+}
+
+sleep 2;
 
 
 #
@@ -138,7 +149,12 @@ for (1..$test_connections){
     );
 }
 
+kill INT => -$pid;
+kill 9, $pid;
+
+
 $poe_kernel->run();
+
 done_testing();
 
 __END__
