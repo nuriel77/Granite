@@ -35,7 +35,7 @@ local $| = 1;
 # and see how to use default certificates
 #
 
-my $servername = $ENV{GRANITE_HOSTNAME} || 'nova.clustervision.com';
+my $servername = $ENV{GRANITE_HOSTNAME} || 'Granite HPC Cloud Scheduler';
 my $host   = $ENV{GRANITE_BIND}         || '127.0.0.1';
 my $port   = $ENV{GRANITE_PORT}         || 21212;
 my $capath = $ENV{GRANITE_CA_PATH}      || 'conf/ssl';
@@ -76,7 +76,9 @@ my $run = sub {
             client_is_next => sub {
                 $client_connections++;
                 warn "At client next\n";
-                my $socket = IO::Socket::SSL->new(
+                my ($socket, $err);
+                eval {
+                  $socket = IO::Socket::SSL->new(
                     # where to connect
                     PeerHost => $host,
                     PeerPort => $port,
@@ -88,25 +90,34 @@ my $run = sub {
                     # certificate verification
                     #SSL_ca_path => $capath,
                     #SSL_ca_file => $cacert,
-                    #SSL_verify_mode => SSL_VERIFY_PEER,
-                    SSL_verify_mode => SSL_VERIFY_NONE,
+                    SSL_verify_mode => SSL_VERIFY_PEER,
+                    SSL_use_cert => 1,
+                    #SSL_verify_mode => SSL_VERIFY_NONE,
 
                     # easy hostname verification
-                    #SSL_verifycn_name => $servername,
+                    SSL_verifycn_name => $servername,
                     #SSL_verifycn_scheme => 'http',
 
                     # SNI support
                     SSL_hostname => $servername,
-                );
-                my $err = "$!, $SSL_ERROR" if $SSL_ERROR;
+                  );
+                  $err = $SSL_ERROR if $SSL_ERROR;
+                };
+
+                $err ||= $SSL_ERROR || $@;
 
                 if ( $socket and ref $socket eq 'IO::Socket::SSL' ){
                     $_[HEAP]->{clients}->{$_[SESSION]->ID()}->{socket} = $socket;
                     $_[KERNEL]->yield('start_io_socket_ssl', $socket);
+                    return;
                 }
-                else {
+
+                if ($err){
                     diag ( $err );
+                    &DEAD;
+                    return;
                 }
+                
             },
             start_io_socket_ssl       => sub { 
                 my ($kernel, $heap, $socket ) = @_[ KERNEL, HEAP, ARG0 ];
@@ -191,12 +202,13 @@ for (1..$test_connections){
 }
 
 
+
 $poe_kernel->run();
 exit 0;
 
 
 sub run_test {
-
+    $SIG{__DIE__} = \&DEAD;
     $SIG{INT} = sub { exit; };
     $SIG{TERM} = sub { exit; };
 
@@ -244,4 +256,13 @@ sub run_test {
     $poe_kernel->run();
     return;
 
+}
+
+sub DEAD {
+    $server->kill();
+    $poe_kernel->sig_child( $server->PID, '_stop');
+    delete $_[HEAP]->{readwrite};
+    delete $_[HEAP]->{wheel};
+    $poe_kernel->stop();
+    exit 1;
 }
