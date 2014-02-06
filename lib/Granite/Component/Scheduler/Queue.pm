@@ -1,14 +1,14 @@
 package Granite::Component::Scheduler::Queue;
 use Data::Dumper::Concise;
 use POE;
-use POE::Queue::Array;
+use POE::XS::Queue::Array;
 use vars qw($log $debug $scheduler $pqa);
 use Moose;
 
 our $child_max = 1;
 
 
-before 'new' => sub { $pqa = POE::Queue::Array->new(); };
+before 'new' => sub { $pqa = POE::XS::Queue::Array->new(); };
 
 
 sub process_queue {
@@ -21,12 +21,16 @@ sub process_queue {
                 . '::process_queue from caller ID [ ' . $scheduler->{queue}->{by} . ' ]' )
         if $debug;
 
-    for my $job ( @{$scheduler->{queue}->{data}} ) {    
-        $pqa->enqueue($job->{priority}, $job);
+    my @jobids = map { $_->{job_id} } @{$scheduler->{queue}->{data}};
+    my @_queue = $pqa->peek_items( sub { 1; } );
+
+    for my $job ( @{$scheduler->{queue}->{data}} ) {
+        $pqa->enqueue($job->{priority}, $job)
+            unless grep { $_->[2]->{job_id} == $job->{job_id} } @_queue;
+        print Dumper $job;
     }
 
-    warn "Have "  . $pqa->get_item_count() . " in Queue\n";
-    #warn Dumper $pqa;
+    $log->debug('Have ' . $pqa->get_item_count() . ' job(s) in active queue');
 
     #for my $job ( @{$scheduler->{queue}->{data}} ){
     #    POE::Session->create
