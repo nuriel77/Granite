@@ -6,9 +6,11 @@ use Granite::Component::Scheduler::Nodes;
 use Granite::Component::Scheduler::Queue::Watcher;
 use Cwd 'getcwd';
 use POE;
+use POE::Wheel::Run;
 use Data::Dumper::Concise;
 use Moose;
     with 'Granite::Engine::Logger',
+         'Granite::Engine::Controller',
          'Granite::Utils::ModuleLoader';
 
 use namespace::autoclean;
@@ -28,11 +30,10 @@ Used as the controller of the application
 
 =cut
 
-
-has modules   => ( is => 'rw', isa => 'HashRef', default => sub {{}} );
-has queue     => ( is => 'rw', isa => 'Object' );
-has debug     => ( is => 'ro', isa => 'Bool' );
-has logger    => ( is => 'ro', isa => 'Object', required => 1 );
+has modules    => ( is => 'rw', isa => 'HashRef', default => sub {{}} );
+has queue      => ( is => 'rw', isa => 'Object' );
+has debug      => ( is => 'ro', isa => 'Bool' );
+has logger     => ( is => 'ro', isa => 'Object', required => 1 );
 
 sub run {
     my $self = shift;
@@ -101,13 +102,19 @@ sub _init {
 
             },
             _child          => \&child_sessions,
-            init_server     => sub { Granite::Component::Server->new()->run( $_[SESSION]->ID() ) },
-            process_res_q   => sub { $self->queue->process_queue( $_[HEAP], $_[SESSION]->ID() ) },
+            init_server     => sub {
+                Granite::Component::Server->new()->run( $_[SESSION]->ID() )
+            },
+            process_res_q   => sub {
+                $self->queue->process_queue( $_[HEAP], $_[SESSION]->ID() )
+            },
+            client_commands => \&init_controller,
+            get_nodes       => \&_get_node_list,
             watch_queue     => \&Granite::Component::Scheduler::Queue::Watcher::run,
             _default        => \&handle_default,
             _stop           => \&terminate,
         },
-        heap => { scheduler => $self->modules->{scheduler} }
+        heap => { scheduler => $self->modules->{scheduler}, self => $self }
     ) or $log->logcroak('[ ' . $_[SESSION]->ID() .  " ] can't POE::Session->create: $!" );
 
     $poe_kernel->run();
@@ -160,19 +167,39 @@ sub child_sessions {
     }
 }
 
+sub init_controller {
+    my ($kernel, $heap, $cmd, $wheel_id) = @_[KERNEL, HEAP, ARG0, ARG1];
+
+    my $output = '';
+    my @commands = keys $heap->{self}->commands;
+    
+    unless ( $cmd ~~ @commands ) {
+        $output = "Commands: " . ( join ', ', @commands );
+        my $server_session = $kernel->alias_resolve('server');
+        $kernel->post( $server_session , 'reply_client', $output, $wheel_id );
+    }
+    else {
+        $heap->{self}->commands->{"$cmd"}->( $kernel, $heap, $wheel_id );
+    }
+
+}
+
+
 sub handle_default {
     my ($event, $args) = @_[ARG0, ARG1];
     $log->logconfess(
       'Session [ ' . $_[SESSION]->ID .
-      " ] caught unhandled event '$event' with (@$args)"
+      " ] caught unhandled event '$event' with " . Dumper @{$args}
     );
 }
 
-=head2 COMMENT
+
 #
 #   Temporarily here:
 #
 sub _get_node_list {
+    my ( $heap, $kernel ) = @_[ HEAP, KERNEL ];
+    my ( $session, $next_event, $wheel_id ) = @_[ ARG0..ARG2 ];
 
     my $scheduler_nodes =
         Granite::Component::Scheduler::Nodes->new(
@@ -188,9 +215,10 @@ sub _get_node_list {
     }
 
     $log->debug( '[ ' . $_[SESSION]->ID() . ' ] Number of visible scheduler nodes: ' . scalar @visible_nodes );
+    $kernel->post($session, $next_event, \@visible_nodes, $wheel_id);
 }
 
-=cut
+
 
 __PACKAGE__->meta->make_immutable(inline_constructor => 0);
 

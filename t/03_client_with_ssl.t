@@ -16,7 +16,7 @@ use Granite::Component::Server;
     with 'Granite::Engine::Logger';
 use vars qw/$timeout $g $s %check $server_started
             $client_connections $server $server_session
-            $server_killed/;
+            $server_killed $socket/;
 
 sub DEBUG { $ENV{GRANITE_DEBUG} }
 
@@ -75,8 +75,7 @@ my $run = sub {
             got_sig => sub { warn "At get signal\n"; $_[KERNEL]->post('_stop'); },
             client_is_next => sub {
                 $client_connections++;
-                warn "At client next\n";
-                my ($socket, $err);
+                my ($err);
                 eval {
                   $socket = IO::Socket::SSL->new(
                     # where to connect
@@ -90,9 +89,9 @@ my $run = sub {
                     # certificate verification
                     #SSL_ca_path => $capath,
                     #SSL_ca_file => $cacert,
-                    SSL_verify_mode => SSL_VERIFY_PEER,
+                    #SSL_verify_mode => SSL_VERIFY_PEER,
                     SSL_use_cert => 1,
-                    #SSL_verify_mode => SSL_VERIFY_NONE,
+                    SSL_verify_mode => SSL_VERIFY_NONE,
 
                     # easy hostname verification
                     SSL_verifycn_name => $servername,
@@ -165,6 +164,7 @@ my $run = sub {
             _stop            => sub {
                 my ($kernel, $session, $heap) = @_[KERNEL, SESSION, HEAP];
                 delete $heap->{clients}->{ $session->ID() };
+                $socket->close();
                 if ( $server->kill() ){
                     $poe_kernel->sig_child( $server->PID, '_stop');
                     delete $heap->{readwrite};
@@ -229,7 +229,7 @@ sub run_test {
     $g->{cfg}->{server}->{verify_client} = 'no';
     $g->{cfg}->{server}->{cert} = 'conf/ssl/granite.default.crt';
     $g->{cfg}->{server}->{key} = 'conf/ssl/granite.default.key';
-   
+    
     $server_session = POE::Session->create(
         inline_states => {
             _start => sub {
@@ -259,6 +259,7 @@ sub run_test {
 }
 
 sub DEAD {
+    $socket->close() if $socket;
     $server->kill();
     $poe_kernel->sig_child( $server->PID, '_stop');
     delete $_[HEAP]->{readwrite};
