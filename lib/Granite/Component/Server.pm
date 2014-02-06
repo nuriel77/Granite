@@ -5,7 +5,7 @@ use File::Basename 'dirname';
 use Data::Validate::IP qw(is_ipv4 is_ipv6);
 use Scalar::Util 'looks_like_number';
 use Sys::Hostname;
-use Data::Dumper;
+use Data::Dumper::Concise;
 use POE
     qw( Wheel::SocketFactory Driver::SysRW Filter::Stream Wheel::ReadWrite );
 
@@ -250,6 +250,7 @@ sub run {
             },
             client_accept     => \&_client_accept,
             client_input      => \&_client_input,
+            reply_client      => \&_client_reply,
             disconnect        => \&_client_disconnect,
             verify_client     => \&_verify_client,
             close_delayed     => \&_close_delayed,
@@ -374,6 +375,31 @@ sub _client_disconnect {
       unless ( $heap->{server}->{$wheel_id}->{disconnecting}++ );
 }
 
+=head3 B<_client_reply>
+
+Reply to client
+
+=cut
+
+sub _client_reply {
+    my ( $heap, $kernel, $reply, $wheel_id ) = @_[ HEAP, KERNEL, ARG0, ARG1 ];
+
+    $log->debug('[ ' . $_[SESSION]->ID() . " ]->($wheel_id) At _client_reply")
+        if $debug;
+
+    my $canwrite = exists $heap->{server}->{$wheel_id}->{wheel}
+      && ( ref( $heap->{server}->{$wheel_id}->{wheel} ) eq 'POE::Wheel::ReadWrite' );
+
+    my $output = "[" . $wheel_id . "] ";
+    $output .= ref $reply ? Dumper $reply : $reply;
+
+    $heap->{server}->{$wheel_id}->{wheel}->put(
+        $output . "\n"
+    ) if $canwrite;
+
+}
+
+
 
 =head3 B<_client_input>
 
@@ -406,11 +432,16 @@ sub _client_input {
     }
     else {
         $input = _sanitize_input($_[SESSION]->ID(), $wheel_id, $input);
-        $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] Your input: $input\n" )
-            if $canwrite;
 
-        $kernel->post($_[SESSION], $input)
-            if ( $input eq 'server_shutdown' );
+        #$heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] Your input: $input\n" )
+        #    if $canwrite;
+
+        #$kernel->post($_[SESSION], $input)
+        #    if ( $input eq 'server_shutdown' );
+
+        my $engine_session = $_[KERNEL]->alias_resolve('engine');
+            $_[KERNEL]->post( $engine_session , 'client_commands', $input, $wheel_id );
+
     }
 }
 

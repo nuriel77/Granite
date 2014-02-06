@@ -1,5 +1,4 @@
 package Granite::Component::Scheduler::Queue;
-use Data::Dumper::Concise;
 use POE;
 use POE::XS::Queue::Array;
 use vars qw($log $debug $scheduler $pqa);
@@ -27,7 +26,7 @@ sub process_queue {
     for my $job ( @{$scheduler->{queue}->{data}} ) {
         $pqa->enqueue($job->{priority}, $job)
             unless grep { $_->[2]->{job_id} == $job->{job_id} } @_queue;
-        print Dumper $job;
+        #print Dumper $job;
     }
 
     $log->debug('Have ' . $pqa->get_item_count() . ' job(s) in active queue');
