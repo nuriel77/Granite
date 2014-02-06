@@ -197,13 +197,18 @@ sub run {
 
     # Display configuration warning
     # =============================
-    if ( $self->_has_unix_socket
-        && ( $Granite::cfg->{server}->{port} || $Granite::cfg->{server}->{bind} )
-    ){
-        $log->warn('[ ' . $sessionId . ' ] Warning: Both unix socket and tcp options are configured.'
-                  . ' Unix socket takes precedence.');
-        $self->_undef_bind;
-        $self->_undef_port;
+    if ( $self->_has_unix_socket ){
+        if ( $Granite::cfg->{server}->{port} || $Granite::cfg->{server}->{bind} ) {
+            $log->warn('[ ' . $sessionId . ' ] Warning: Both unix socket and tcp options are configured.'
+                      . ' Unix socket takes precedence.');
+            $self->_undef_bind;
+            $self->_undef_port;
+        }
+
+        if ( -e $self->unix_socket ){
+            unlink $self->unix_socket
+                or $log->logcroak("Cannot reuse old socket '".$self->unix_socket."': $!");
+        }
     }  
 
     # Set global SSL options
@@ -241,6 +246,7 @@ sub run {
                 ) or $log->logcroak('[ ' . $_[SESSION]-ID()
                                     . " ] can't POE::Wheel::SocketFactory->new: $!" );
 
+                $kernel->sig('TERM' => 'server_shutdown');
             },
             client_accept     => \&_client_accept,
             client_input      => \&_client_input,
@@ -299,6 +305,10 @@ sub _terminate_server {
     $log->warn('Server shutdown');
     delete $_[HEAP]->{server};
     $client_namespace = {};
+    if ( $self->_has_unix_socket and -e $self->unix_socket ){
+        unlink $self->unix_socket
+            or $log->warn("Cannot remove socket '".$self->unix_socket."': $!");
+    }
 }
 
 
@@ -437,17 +447,23 @@ sub _client_accept {
 
     # If TCP, save remote address details
     # ===================================
-    unless ( $unix_socket ) {
-        my ( $remote_ip, $remote_port ) =
-            _get_remote_address($socket, $_[SESSION]->ID(), $io_wheel->ID()); 
+    unless ( $self->_has_unix_socket ) {
+         my ( $remote_ip, $remote_port ) = _get_remote_address($socket, $_[SESSION]->ID(), $io_wheel->ID());
+        if ( $remote_ip and $remote_port ){ 
 
-        $heap->{server}->{ $io_wheel->ID() } = {
-            remote_ip => $remote_ip,
-            remote_port => $remote_port
-        };
-
-        $log->info( '[ ' . $_[SESSION]->ID() . ' ]->(' . $io_wheel->ID()
-                    . ') Remote Addr: ' . $remote_ip . ':' . $remote_port );    
+	        $heap->{server}->{ $io_wheel->ID() } = {
+	            remote_ip => $remote_ip,
+	            remote_port => $remote_port
+	        };
+	
+	        $log->info( '[ ' . $_[SESSION]->ID() . ' ]->(' . $io_wheel->ID()
+	                    . ') Remote Addr: ' . $remote_ip . ':' . $remote_port );    
+    
+        }
+        else {
+        	$log->error('[ ' . $_[SESSION]->ID() . ' ]->(' . $io_wheel->ID()
+                        . ') Failed to get remote address:port');
+        }
     }
 
     # Store the wheel ID and the
@@ -476,7 +492,7 @@ sub _verify_client {
     
     # If not a socket, get remote ip+port
     # ===================================
-    unless ( $unix_socket ){
+    unless ( $self->_has_unix_socket ){
         $remote_ip = $heap->{server}->{$wheel_id}->{remote_ip};
         $remote_port = $heap->{server}->{$wheel_id}->{remote_port};
 
@@ -498,20 +514,20 @@ sub _verify_client {
 
     $log->info('[ ' . $_[SESSION]->ID()
             . " ]->($wheel_id) Verifying password\n");
-
+    $input =~ s/\n$|\r//g;
     # TODO: Add authentication module
-    if ( $input ne 'system'  ){
+    if ( $input ne 'system' ){
         $heap->{server}->{$wheel_id}->{wheel}->put(
             "[" . $wheel_id . "] Password authentication failure.\n"
         ) if $canwrite;
-
+        $log->warn( '[ ' . $wheel_id . ' ] Client authentication failure.');
         $kernel->yield( "disconnect" => $wheel_id );
         return;
     }
 
     # Register client
     # ===============
-    $client_namespace->{$wheel_id} = $unix_socket
+    $client_namespace->{$wheel_id} = $self->_has_unix_socket
         ? { registered => time() }
         : { remote_ip => $remote_ip,
             remote_ip => $remote_port,
@@ -537,6 +553,7 @@ Do not accept input with invalid characters
 sub _sanitize_input {
     my ($sessionId, $wheel_id, $input) = @_;
 
+    $input =~ s/\n$|\r//g;
     return $input if $input eq '';
 
     unless ($input =~ /^[a-z0-9_\-\.,\!\%\$\^\&\(\)\[\]\{\}\+\=\@\?\ ]+$/i){
