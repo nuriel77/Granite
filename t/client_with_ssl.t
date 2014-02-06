@@ -1,5 +1,22 @@
-use strict;
+use Moose;
 use Test::More;
+sub POE::Kernel::ASSERT_EVENTS  () { 0 }
+sub POE::Kernel::ASSERT_DEFAULT () { 0 }
+sub POE::Kernel::TRACE_EVENTS  () { 0 }
+sub POE::Kernel::TRACE_DEFAULT  () { 0 }
+sub POE::Kernel::CATCH_EXCEPTIONS () { 0 }
+use POE::Kernel;
+use POE;
+use POE::Wheel::Run;
+use IO::Socket::PortState 'check_ports';
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use Granite;
+use Granite::Component::Server;
+    with 'Granite::Engine::Logger';
+use vars qw/$timeout $g $s %check $server_started
+            $client_connections $server $server_session
+            $server_killed/;
 
 sub DEBUG { $ENV{GRANITE_DEBUG} }
 
@@ -11,17 +28,6 @@ BEGIN {
 
 
 local $| = 1;
-
-
-
-my $pid = fork();
-if( $pid == 0 ){
-    $poe_kernel->stop();
-    $ENV{GRANITE_KEEP_TEST_SERVER_RUNNING} = 1;
-    exec 'GRANITE_KEEP_TEST_SERVER_RUNNING=1 perl t/01_test_server_tcp.t';
-}
-
-sleep 2;
 
 
 #
@@ -39,11 +45,13 @@ my $key    = $ENV{GRANITE_KEY}          || 'conf/ssl/client01.key';
 my $password = 'system';
 
 my $test_connections = $ENV{GRANITE_TEST_MAX_CONNECTIONS} || 10;
+%check = ( tcp => { 21212 => { name => 'Granite' } } );
+$client_connections = 0;
 
 #
-# We plan 6 tests per client connection + 3 base tests
+# We plan 6 tests per client connection + 5 base tests
 #
-plan tests => 3 + ( 6 * $test_connections);
+plan tests => 5 + ( 6 * $test_connections);
 
 $_[HEAP]->{clients} = {};
 
@@ -54,6 +62,20 @@ my $run = sub {
     return POE::Session->create(
         inline_states => {
             _start        => sub {
+                my ($kernel, $heap) = @_[KERNEL, HEAP];
+                unless ( $server_started || $_[HEAP]->{server_started} ){
+                    $heap->{worker} = POE::Wheel::Run->new(
+                        Program     => \&run_test,
+                    ) or die "$0: can't POE::Wheel::Run->new";
+                    $server = $heap->{worker};
+                }
+                $kernel->sig_child($server->PID, "got_sig");
+                $kernel->delay('client_is_next'=>2);           
+            },
+            got_sig => sub { warn "At get signal\n"; $_[KERNEL]->post('_stop'); },
+            client_is_next => sub {
+                $client_connections++;
+                warn "At client next\n";
                 my $socket = IO::Socket::SSL->new(
                     # where to connect
                     PeerHost => $host,
@@ -65,12 +87,12 @@ my $run = sub {
 
                     # certificate verification
                     #SSL_ca_path => $capath,
-                    SSL_ca_file => $cacert,
-                    SSL_verify_mode => SSL_VERIFY_PEER,
-                    #SSL_verify_mode => SSL_VERIFY_NONE,
+                    #SSL_ca_file => $cacert,
+                    #SSL_verify_mode => SSL_VERIFY_PEER,
+                    SSL_verify_mode => SSL_VERIFY_NONE,
 
                     # easy hostname verification
-                    SSL_verifycn_name => $servername,
+                    #SSL_verifycn_name => $servername,
                     #SSL_verifycn_scheme => 'http',
 
                     # SNI support
@@ -128,13 +150,30 @@ my $run = sub {
                     $_[KERNEL]->post($_[SESSION], 'failed_readwrite');
                 }
             },
-            failed_readwrite => sub { $_[KERNEL]->delay('_stop'=>1) },
-            _stop         => sub { delete $_[HEAP]->{clients}->{ $_[ARG0] } },
+            failed_readwrite => sub { $_[KERNEL]->delay('_stop' => 1 ) },
+            _stop            => sub {
+                my ($kernel, $session, $heap) = @_[KERNEL, SESSION, HEAP];
+                delete $heap->{clients}->{ $session->ID() };
+                if ( $server->kill() ){
+                    $poe_kernel->sig_child( $server->PID, '_stop');
+                    delete $heap->{readwrite};
+                    delete $heap->{wheel};
+                    $server_killed = 1;
+                }
+                if ( $client_connections >= $test_connections ){
+                    $poe_kernel->stop();
+                    sleep 1;
+                    check_ports('localhost', $timeout, \%check);
+                    is ( $check{'tcp'}->{'21212'}->{open}, 0,
+                        'check server is really down');
+                    pass ('Done testing');
+                    done_testing();
+                    exit;
+                }
+            },
         }
     )
 };
-
-
 
 for (1..$test_connections){
     POE::Test::Helpers->spawn(
@@ -142,19 +181,67 @@ for (1..$test_connections){
         tests => {
             # _start is 0
             start_io_socket_ssl         => { order => 1 },
-            client_is_authenticated     => { order => 2 },
-            client_server_can_readwrite => { order => 3 },
-            _stop                       => { order => 4 },
+            client_is_next              => { order => 2 },
+            client_is_authenticated     => { order => 3 },
+            client_server_can_readwrite => { order => 4 },
+            _stop                       => { order => 5 },
         },
     );
+    $server_started++;
 }
-
-kill INT => -$pid;
-kill 9, $pid;
 
 
 $poe_kernel->run();
+exit 0;
 
-done_testing();
 
-__END__
+sub run_test {
+
+    $SIG{INT} = sub { exit; };
+    $SIG{TERM} = sub { exit; };
+
+    $_[HEAP]->{server_started} = 1;
+
+    POE::Kernel->stop();
+
+    $timeout = 5;
+    %check = ( tcp => { 21212 => { name => 'Granite' } } );
+    $g = Granite->new();
+
+    # Disable logging
+    #silent_logger($Granite::log);
+
+    # Adjust running config for testing purposes
+    delete $g->{cfg}->{server}->{cacert};
+    $g->{cfg}->{server}->{client_certificate} = 'no';
+    $g->{cfg}->{server}->{verify_client} = 'no';
+    $g->{cfg}->{server}->{cert} = 'conf/ssl/granite.default.crt';
+    $g->{cfg}->{server}->{key} = 'conf/ssl/granite.default.key';
+   
+    $server_session = POE::Session->create(
+        inline_states => {
+            _start => sub {
+                my ($kernel, $heap) = @_[KERNEL, HEAP];
+                # Check TCP server
+                $s = Granite::Component::Server->new()->run( $_[SESSION]->ID() );
+                ok ( ( $s->_has_mysession and $s->mysession->ID() == ($_[SESSION]->ID()+1) ),
+                    'verify server returns session ID ' . $s->mysession->ID() );
+
+                check_ports('localhost', $timeout, \%check);
+                is ( $check{'tcp'}->{'21212'}->{open}, 1,
+                    'check server port listening');
+                $kernel->sig(TERM => '_stop');
+            },
+            _stop  => sub {
+                unless ( $server_killed ){
+                    $server_killed = 1;
+                    #exit;
+                }
+            },
+        }
+    );
+
+    $poe_kernel->run();
+    return;
+
+}
