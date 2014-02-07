@@ -1,6 +1,4 @@
 package Granite::Component::Scheduler::Nodes;
-use strict;
-use warnings;
 use Moose;
 
 has scheduler => ( is => 'ro', isa => 'HashRef', required => 1, default => sub {{}} );
@@ -14,5 +12,7 @@ sub list_nodes {
     $self->logger->debug('Getting scheduler node list');
     return $scheduler->get_nodes();
 }
+
+__PACKAGE__->meta->make_immutable(inline_constructor => 0);
 
 1;

@@ -24,29 +24,29 @@ use vars
 
 =head1 DESCRIPTION
 
-Granite::Component::Server
+  Granite::Component::Server
 
-features a non-blocking ssl server,
+  features a non-blocking ssl server,
 
-unix socket or plain tcp server
+  unix socket or plain tcp server
 
 =head1 SYNOPSIS
 
-Granite::Component::Server->new()->run( $_[SESSION]->ID() )
+  Granite::Component::Server->new()->run( $_[SESSION]->ID() )
 
-SessionId is the Id of the caller
+  SessionId is the Id of the caller
 
-See configuration file for more details
+  See configuration file for more details
 
 =head2 CONSTRAINTS
 
-Enumeration and type constraints
+  Enumeration and type constraints
 
-via Moose::Util::TypeConstraints
+  via Moose::Util::TypeConstraints
 
 =head3 subtype 'Port'
 
-B<Port> can be Int range 1025..65535
+  B<Port> can be Int range 1025..65535
 
 =cut
 
@@ -57,7 +57,7 @@ subtype 'Port',
 
 =head3 subtype 'BindAddress'
 
-B<BindAddress> can be IPv4 or IPv6
+  B<BindAddress> can be IPv4 or IPv6
 
 =cut
 
@@ -140,7 +140,7 @@ has mysession => (
 
 =head3 B<BUILD>
 
-Assign class parameters before 'run'
+  Assign class parameters before 'run'
 
 =cut
 
@@ -178,7 +178,7 @@ sub BUILD {
 
 =head3 B<run( $parent_sessionId )>
 
-Method 'run' will start the server session
+  Method 'run' will start the server session
 
 =cut
 
@@ -280,7 +280,7 @@ sub run {
 
 =head3 B<server_error>
 
-Handler for SocketFactory FailureEvent
+  Handler for SocketFactory FailureEvent
 
 =cut
 
@@ -297,7 +297,7 @@ sub server_error {
 
 =head3 B<_terminate_server>
 
-Shut down the server
+  Shut down the server
 
 =cut
 
@@ -315,7 +315,7 @@ sub _terminate_server {
 
 =head3 B<_client_error>
 
-Handler for client errors
+  Handler for client errors
 
 =cut
 
@@ -337,9 +337,9 @@ sub _client_error {
 
 =head3 B<_close_delayed>
 
-Disconnect a client
-call to this handler is typically 
-delayed about 1 second
+  Disconnect a client
+  call to this handler is typically 
+  delayed about 1 second
 
 =cut
 
@@ -357,9 +357,9 @@ sub _close_delayed {
 
 =head3 B<_client_disconnect>
 
-Handler for client disconnect
-Will delay termination in
-one second and call _close_delayed
+  Handler for client disconnect
+  Will delay termination in
+  one second and call _close_delayed
 
 =cut
 
@@ -377,7 +377,7 @@ sub _client_disconnect {
 
 =head3 B<_client_reply>
 
-Reply to client
+  Reply to client
 
 =cut
 
@@ -403,12 +403,12 @@ sub _client_reply {
 
 =head3 B<_client_input>
 
-client input handler for all 
-client input data.
+  client input handler for all 
+  client input data.
 
-If first input for a client:
-we run client verification and register
-the client if authentication is successful
+  If first input for a client:
+  we run client verification and register
+  the client if authentication is successful
 
 =cut
 
@@ -448,7 +448,7 @@ sub _client_input {
 
 =head3 B<_client_accept>
 
-New socket connection established
+  New socket connection established
 
 =cut
 
@@ -507,7 +507,7 @@ sub _client_accept {
 
 =head3 B<_verify_client>
 
-Verify the client when connected
+  Verify the client when connected
 
 =cut
 
@@ -577,7 +577,7 @@ sub _verify_client {
 
 =head3 B<_sanitize_input>
 
-Do not accept input with invalid characters
+  Do not accept input with invalid characters
 
 =cut
 
@@ -602,7 +602,7 @@ sub _sanitize_input {
 
 =head3 B<_get_remote_address>
 
-Get the IP:Port of the client
+  Get the IP:Port of the client
 
 =cut
 
@@ -635,7 +635,7 @@ __PACKAGE__->meta->make_immutable(inline_constructor => 0);
 
 =head1 AUTHOR
 
-Nuriel Shem-Tov
+  Nuriel Shem-Tov
 
 =cut
 

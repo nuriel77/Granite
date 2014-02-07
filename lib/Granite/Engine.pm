@@ -20,20 +20,81 @@ use vars qw($log $debug $daemon);
 
 Granite::Engine
 
-=head1 SYNOPSIS
-
-Loaded by granite main script
-
 =head1 DESCRIPTION
 
-Used as the controller of the application
+  Used as the controller of the application
 
+=head1 SYNOPSIS
+
+  use Granite;
+  my $g = Granite->new();
+  $g->init;
+
+  (Loaded by granite main script)
+
+=head2 ATTRIBUTES
+
+=over
+
+=item * L<modules> 
 =cut
 
-has modules    => ( is => 'rw', isa => 'HashRef', default => sub {{}} );
-has queue      => ( is => 'rw', isa => 'Object' );
-has debug      => ( is => 'ro', isa => 'Bool' );
-has logger     => ( is => 'ro', isa => 'Object', required => 1 );
+has modules    => (
+    is => 'rw',
+    isa => 'HashRef',
+    default => sub {{}},
+    lazy => 1,
+);
+
+=item * L<scheduler> 
+=cut
+
+has scheduler  => (
+    is => 'rw',
+    isa => 'HashRef',
+    lazy => 1,
+    default => sub {{}},
+);
+
+=item * L<cloud> 
+=cut
+
+has cloud      => (
+    is => 'ro',
+    isa => 'Object',
+    writer => '_set_cloud',
+    predicate => '_has_cloud',
+    lazy => 1,
+    default => sub {{}},
+);
+
+=item * L<debug> 
+=cut
+
+has debug      => (
+    is => 'ro',
+    isa => 'Bool'
+);
+
+=item * L<logger> 
+=cut
+
+has logger     => (
+    is => 'ro',
+    isa => 'Object',
+    required => 1
+);
+
+
+=back
+
+=head2 METHODS
+
+=head3 B<run>
+
+ Runs the engine
+
+=cut
 
 sub run {
     my $self = shift;
@@ -62,6 +123,14 @@ sub run {
     $self->_init;
 }
 
+=head3 B<_init>
+
+  Engine initialize all components
+  and modules then start main session
+  and run children sessions
+
+=cut
+
 sub _init {
     my $self = shift;
 
@@ -70,12 +139,9 @@ sub _init {
     # Load modules
     # ============
     $self->_init_modules();
-    $self->queue( Granite::Component::Scheduler::Queue->new );
-
-    my $cloud = $self->{modules}->{cloud}->{ (keys %{$self->{modules}->{cloud}})[0] };
-    warn Dumper $cloud->get_all_instances;
-    warn Dumper $cloud->get_all_hypervisors;
-
+ 
+    #warn Dumper $cloud->get_all_instances;
+    #warn Dumper $cloud->get_all_hypervisors;
 
     $log->info('Starting POE sessions');
 
@@ -106,7 +172,7 @@ sub _init {
                 Granite::Component::Server->new()->run( $_[SESSION]->ID() )
             },
             process_res_q   => sub {
-                $self->queue->process_queue( $_[HEAP], $_[SESSION]->ID() )
+                $self->scheduler->{queue}->process_queue( $_[HEAP], $_[SESSION]->ID() )
             },
             client_commands => \&init_controller,
             get_nodes       => \&_get_node_list,
@@ -114,12 +180,18 @@ sub _init {
             _default        => \&handle_default,
             _stop           => \&terminate,
         },
-        heap => { scheduler => $self->modules->{scheduler}, self => $self }
+        heap => { scheduler => $self->scheduler, self => $self }
     ) or $log->logcroak('[ ' . $_[SESSION]->ID() .  " ] can't POE::Session->create: $!" );
 
     $poe_kernel->run();
 
 }
+
+=head3 B<_terminate>
+
+  If termination signal arrives
+
+=cut
 
 sub _terminate {
     my ($heap, $kernel, $sender, $session ) = @_[ HEAP, KERNEL, SENDER, SESSION ];
@@ -131,14 +203,22 @@ sub _terminate {
     Granite->QUIT;
 }
 
+=head3 B<_init_modules>
+
+  Initialize pluggable modules
+  Configuration example:
+
+  modules:
+    scheduler:
+      name: Slurm
+      meta:
+        - '/opt/slurm/etc/slurm.conf'
+  
+=cut
+
 sub _init_modules {
     my $self = shift;
 
-#modules:
-#  scheduler:
-#    name: Slurm
-#    meta:
-#      - '/opt/slurm/etc/slurm.conf'
 
     for my $module ( keys %{$Granite::cfg->{modules}} ){
         my $package = 'Granite::Modules::' . ucfirst($module)
@@ -154,8 +234,37 @@ sub _init_modules {
                 );
             $log->debug("Loaded module '" . $package . "'") if $debug;
         }
-    }
+    }    
+
+    # Set scheduler
+    # =============
+    $self->scheduler ( $self->modules->{scheduler} )
+        && delete $self->modules->{scheduler};    
+
+    # Set scheduler queue
+    # ====================
+    $self->scheduler->{queue} = Granite::Component::Scheduler::Queue->new;
+    
+    # Set scheduler  nodes
+    # ====================
+    $self->scheduler->{nodes} = Granite::Component::Scheduler::Nodes->new(
+        scheduler => $self->scheduler,
+        logger => $log,
+        debug => $debug 
+    );
+
+    # Set cloud
+    # =========
+    $self->_set_cloud ( $self->modules->{cloud}->{ (keys %{$self->modules->{cloud}})[0] } )
+        && delete $self->modules->{cloud};
+
 }
+
+=head3 B<child_sessions>
+
+  Used to maintain state of children sessions
+
+=cut
 
 sub child_sessions {
     my ($heap, $kernel, $operation, $child) = @_[HEAP, KERNEL, ARG0, ARG1];
@@ -167,12 +276,28 @@ sub child_sessions {
     }
 }
 
+=head3 B<init_controller>
+
+  Initialize Engine's controller
+
+=cut
+
 sub init_controller {
     my ($kernel, $heap, $cmd, $wheel_id) = @_[KERNEL, HEAP, ARG0, ARG1];
 
     my $output = '';
+    
+    # Get all known commands
+    # ======================
     my @commands = keys $heap->{self}->commands;
     
+    # Check if use command exists.
+    # Return the list of commands to user
+    # if user's command is unrecognized.
+    # Otherwise, perform closure to exec
+    # the configured command method and pass
+    # the POE variables + client's wheel_id
+    # =====================================
     unless ( $cmd ~~ @commands ) {
         $output = "Commands: " . ( join ', ', @commands );
         my $server_session = $kernel->alias_resolve('server');
@@ -184,6 +309,12 @@ sub init_controller {
 
 }
 
+
+=head3
+
+  Default method to capture unrecognized POE requests
+
+=cut
 
 sub handle_default {
     my ($event, $args) = @_[ARG0, ARG1];
@@ -201,13 +332,7 @@ sub _get_node_list {
     my ( $heap, $kernel ) = @_[ HEAP, KERNEL ];
     my ( $session, $next_event, $wheel_id ) = @_[ ARG0..ARG2 ];
 
-    my $scheduler_nodes =
-        Granite::Component::Scheduler::Nodes->new(
-            scheduler => $_[HEAP]->{scheduler},
-            logger => $log,
-            debug => $debug );
-
-    my $node_array = $scheduler_nodes->list_nodes;
+    my $node_array = $heap->{self}->scheduler->{nodes}->list_nodes;
     my @visible_nodes = grep defined, @{$node_array};
 
     if ( $debug ){
@@ -224,7 +349,7 @@ __PACKAGE__->meta->make_immutable(inline_constructor => 0);
 
 =head1 AUTHOR
 
-Nuriel Shem-Tov
+  Nuriel Shem-Tov
 
 =cut
 
