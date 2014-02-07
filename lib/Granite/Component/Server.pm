@@ -435,14 +435,16 @@ sub _client_input {
 
         # For tests only we return a reply here
         # =====================================
-        $heap->{server}->{$wheel_id}->{wheel}->put(
-            "[" . $wheel_id . "] Test OK for wheel ID $wheel_id\n"
-        ) if $canwrite;
-
-        $log->debug('[ ' . $_[SESSION]->ID() . " ] Sanitized input and left with: '$input'" );
-        my $engine_session = $_[KERNEL]->alias_resolve('engine');
-        $_[KERNEL]->post( $engine_session , 'client_commands', $input, $wheel_id );
-
+        if ( $canwrite and $input eq 'test' ){
+            $heap->{server}->{$wheel_id}->{wheel}->put(
+                "[" . $wheel_id . "] Test OK for wheel ID $wheel_id\n"
+            );
+        }
+        else {      	
+	        $log->debug('[ ' . $_[SESSION]->ID() . " ] Sanitized input and left with: '$input'" );
+	        my $engine_session = $_[KERNEL]->alias_resolve('engine');
+	        $_[KERNEL]->post( $engine_session , 'client_commands', $input, $wheel_id );
+        }
     }
 }
 
