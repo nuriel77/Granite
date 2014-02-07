@@ -385,7 +385,7 @@ sub _close_delayed {
 sub _client_disconnect {
     my ( $heap, $kernel, $args ) = @_[ HEAP, KERNEL, ARG0 ];
 
-    my $wheel_id = shift @{$args};
+    my $wheel_id = ref $args eq 'ARRAY' ? shift @{$args} : $args;
 
     $log->debug('[ ' . $_[SESSION]->ID() . " ]->($wheel_id) At _client_disconnect" )
         if $debug;
@@ -607,13 +607,16 @@ sub _verify_client {
 sub _sanitize_input {
     my ($sessionId, $wheel_id, $input) = @_;
 
+    # Remove new line
     $input =~ s/\n$|\r//g;
-    return $input if $input eq '';
+    # Remove leading/trailing spaces
+    $input =~ s/^\s+|\s+$//g ; 
+    return '' if $input eq '';
 
     unless ($input =~ /^[a-z0-9_\-\.,\!\%\$\^\&\(\)\[\]\{\}\+\=\@\?\ ]+$/i){
         $log->warn( '[ '. $sessionId . ' ]->(' . $wheel_id
                 . ') Client input contains invalid characters, erasing content.' );
-        $input = '';
+        return '';
     }
     else {
         $log->info('[ '. $sessionId . ' ]->(' . $wheel_id
