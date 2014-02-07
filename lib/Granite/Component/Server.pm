@@ -433,14 +433,15 @@ sub _client_input {
     else {
         $input = _sanitize_input($_[SESSION]->ID(), $wheel_id, $input);
 
-        #$heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] Your input: $input\n" )
-        #    if $canwrite;
+        # For tests only we return a reply here
+        # =====================================
+        $heap->{server}->{$wheel_id}->{wheel}->put(
+            "[" . $wheel_id . "] Test OK for wheel ID $wheel_id\n"
+        ) if $canwrite;
 
-        #$kernel->post($_[SESSION], $input)
-        #    if ( $input eq 'server_shutdown' );
-
+        $log->debug('[ ' . $_[SESSION]->ID() . " ] Sanitized input and left with: '$input'" );
         my $engine_session = $_[KERNEL]->alias_resolve('engine');
-            $_[KERNEL]->post( $engine_session , 'client_commands', $input, $wheel_id );
+        $_[KERNEL]->post( $engine_session , 'client_commands', $input, $wheel_id );
 
     }
 }

@@ -1,6 +1,14 @@
 package Granite::Engine::Controller;
 use Moose::Role;
 
+
+=head1 DESCRIPTION
+
+Controller roles for the engine
+Currently includes all userspace
+commands originating from user input
+
+=cut
 has commands => (
     is => 'ro',
     isa => 'HashRef',
@@ -9,7 +17,7 @@ has commands => (
 
 sub _get_commands_hash {
     { 
-        ping            => sub {return 'pong' },
+        ping            => sub { return 'pong' },
         hello           => sub { return 'what\'s up?' },
         shutdown        => sub { $_[0]->stop },
         server_shutdown => sub { return undef; },
