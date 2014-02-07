@@ -174,7 +174,7 @@ sub _init {
             process_res_q   => sub {
                 $self->scheduler->{queue}->process_queue( $_[HEAP], $_[SESSION]->ID() )
             },
-            client_commands => \&init_controller,
+            client_commands => \&_controller,
             get_nodes       => \&_get_node_list,
             watch_queue     => \&Granite::Component::Scheduler::Queue::Watcher::run,
             _default        => \&handle_default,
@@ -287,18 +287,18 @@ sub child_sessions {
     }
 }
 
-=head3 B<init_controller>
+=head3 B<_controller>
 
   Initialize Engine's controller
 
 =cut
 
-sub init_controller {
+sub _controller {
     my ($kernel, $heap, $cmd, $wheel_id) = @_[KERNEL, HEAP, ARG0, ARG1];
 
     my $output = '';
     
-    $log->debug('[ ' . $_[SESSION]->ID(). " ] At init_controller with command: '$cmd'");
+    $log->debug('[ ' . $_[SESSION]->ID(). " ] At _controller with command: '$cmd'");
     
     # Get all known commands
     # ======================

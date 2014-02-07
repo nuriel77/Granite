@@ -35,6 +35,7 @@ B<get_all_hypervisors>
 
 requires 'get_all_instances';
 requires 'get_all_hypervisors';
+requires 'boot_instance';
 
 no Moose;
 

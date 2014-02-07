@@ -1,5 +1,6 @@
 package Granite::Engine::Controller;
 use Moose::Role;
+use Try::Tiny;
 use Data::Dumper;
 
 =head1 DESCRIPTION
@@ -69,8 +70,14 @@ sub _get_commands_hash {
         # =========================
         getnodes        => sub {
             my ( $kernel, $heap, $wheel_id ) = @_;           
-            my $node_array = $heap->{self}->scheduler->{nodes}->list_nodes;
-            my @visible_nodes = grep defined, @{$node_array};
+            my $node_array;
+            try { $node_array = $heap->{self}->scheduler->{nodes}->list_nodes }
+            catch { $node_array = $_ };
+
+            my @visible_nodes = ref $node_array eq 'ARRAY'
+                ? grep defined, @{$node_array}
+                : $node_array;
+
             $kernel->post(
                 $kernel->alias_resolve('server'),
                 'reply_client',
@@ -82,11 +89,13 @@ sub _get_commands_hash {
         # =========================
         getinstances    => sub {
             my ( $kernel, $heap, $wheel_id ) = @_;
-            my @instances = $heap->{self}->cloud->get_all_instances;
+            my $instances;
+            try { $instances = $heap->{self}->cloud->get_all_instances }
+            catch { $instances = $_ };
             $kernel->post(
                 $kernel->alias_resolve('server'),
                 'reply_client',
-                \@instances,
+                $instances,
                 $wheel_id
             );
         },
@@ -94,11 +103,38 @@ sub _get_commands_hash {
         # ===========================
         gethypervisors  => sub {
             my ( $kernel, $heap, $wheel_id ) = @_;
+            my $hypervisor_list;
+            try { $hypervisor_list = $heap->{self}->cloud->get_all_hypervisors }
+            catch { $hypervisor_list = $_ };
             $kernel->post(
                 $kernel->alias_resolve('server'),
                 'reply_client',
-                'work in progress',
-                $wheel_id
+                $hypervisor_list,
+                $wheel_id,
+            );
+        },
+        # Boot instance 
+        # =============
+        bootinstance    => sub {
+            my ( $kernel, $heap, $wheel_id ) = @_;
+            my $status = 'Instance boot request submitted OK';
+            try {
+                $heap->{self}->cloud->boot_instance({
+                    name => 'test01',
+                    key_name => $heap->{self}->cloud->{metadata}->{adminkey},
+                    imageRef => $heap->{self}->cloud->{metadata}->{default_image},
+                    flavorRef => $heap->{self}->cloud->{metadata}->{default_flavor_id},
+                })
+            }
+            catch {
+                $Granite::log->error('Error from Cloud API: ' . $_);
+                $status = $_;
+            };
+            $kernel->post(
+                $kernel->alias_resolve('server'),
+                'reply_client',
+                $status,
+                $wheel_id,
             );
         },
         # Client disconnect

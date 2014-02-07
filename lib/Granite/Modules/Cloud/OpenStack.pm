@@ -1,19 +1,26 @@
 package Granite::Modules::Cloud::OpenStack;
-use Granite::Modules::Cloud::OpenStack::Compute;
-use Carp 'confess';
 use Moose;
-    with 'Granite::Modules::Cloud';
+use Granite::Modules::Cloud::OpenStack::Compute;
 use namespace::autoclean;
+
+with 'Granite::Modules::Cloud';
+
 
 =head1 DESCRIPTION
 
-Uses the subclass of Net::OpenStack::Compute
+  Uses the subclass of Net::OpenStack::Compute
 
-(Granite::Modules::Cloud::OpenStack::Compute)
+  (Granite::Modules::Cloud::OpenStack::Compute)
 
 =head1 SYNOPSIS
 
-See configuration file for more details
+  See configuration file for more details
+
+=head2 METHOD MODIFIERS
+
+=head3 B<around 'new'>
+
+    Override constructor, load OpenStack subclass
 
 =cut
 
@@ -38,9 +45,33 @@ around 'new' => sub {
     return $self;
 };
 
+=head2 METHODS
+
+=head3 B<get_all_instances>
+
+  Same as nova list
+
+=cut
+
 sub get_all_instances { shift->compute->get_servers(detail => 1) }
 
+
+=head3 B<get_all_hypervisors>
+
+  Get hypervisors and their details
+
+=cut
+
 sub get_all_hypervisors { shift->compute->get_hypervisors(detail => 1) }
+
+
+=head3 B<boot_instance>
+
+  Boot an instance
+
+=cut
+
+sub boot_instance { shift->compute->create_server(shift) }
 
 __PACKAGE__->meta->make_immutable(inline_constructor => 0);
 
