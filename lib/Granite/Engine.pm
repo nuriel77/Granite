@@ -92,7 +92,7 @@ has logger     => (
 
 =head3 B<run>
 
- Runs the engine
+  Runs the engine
 
 =cut
 
@@ -245,8 +245,8 @@ sub _init_modules {
     # ====================
     $self->scheduler->{queue} = Granite::Component::Scheduler::Queue->new;
     
-    # Set scheduler  nodes
-    # ====================
+    # Set scheduler nodes
+    # ===================
     $self->scheduler->{nodes} = Granite::Component::Scheduler::Nodes->new(
         scheduler => $self->scheduler,
         logger => $log,
