@@ -269,6 +269,7 @@ sub run_test {
 }
 
 sub DEAD {
+    return unless defined $^S and $^S == 0; # Ignore errors in eval
     $socket->close() if $socket;
     $server->kill();
     $poe_kernel->sig_child( $server->PID, '_stop');
