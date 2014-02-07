@@ -92,7 +92,6 @@ sub DEATH {
     my ($error) = @_;
     chomp $error;
     print "die: $error\n";
-
 }
 
 

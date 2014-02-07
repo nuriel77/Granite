@@ -21,7 +21,7 @@ sub set_logger_stdout {
     shift->add_appender( $stdout_appender );
 }
 
-sub silent_logger { shift->level('OFF'); }
+sub silence_logger { shift->level('OFF'); }
 
 
 no Moose;

@@ -27,7 +27,8 @@ use Data::Dumper;
 has commands => (
     is => 'ro',
     isa => 'HashRef',
-    default => \&_get_commands_hash
+    default => \&_get_commands_hash,
+    lazy => 1,
 );
 
 
@@ -41,20 +42,63 @@ has commands => (
 
 sub _get_commands_hash {
     { 
-        ping            => sub { return 'pong' },
-        hello           => sub { return 'what\'s up?' },
-        shutdown        => sub { $_[0]->stop },
-        server_shutdown => sub { return undef; },
+        ping            => sub {
+            my ( $kernel, $heap, $wheel_id ) = @_;
+            $kernel->post(
+                $kernel->alias_resolve('server'),
+                'reply_client',
+                'pong',
+                $wheel_id
+            );
+        },
+        # Shutdown the server session
+        # ===========================
+        server_shutdown => sub {
+            my ( $kernel, $heap, $wheel_id ) = @_;
+            my $server = $kernel->alias_resolve('server');
+            my $postback = $server->postback( "server_shutdown", $wheel_id );
+            $kernel->post(
+                $server,
+                'reply_client',
+                'Shutting down server. Goodbye.',
+                $wheel_id,
+                $postback,
+            );
+        },
+        # Get scheduler's node list
+        # =========================
         getnodes        => sub {
             my ( $kernel, $heap, $wheel_id ) = @_;           
             my $node_array = $heap->{self}->scheduler->{nodes}->list_nodes;
             my @visible_nodes = grep defined, @{$node_array};
-		    if ( $Granite::debug ){
-		        $Granite::log->debug( 'Defined Node: ' . Dumper $_ )
-		              for @visible_nodes;
-		    }
-            my $server_session = $kernel->alias_resolve('server');           
-            $kernel->post($server_session, 'reply_client', \@visible_nodes, $wheel_id);        	
+            $kernel->post(
+                $kernel->alias_resolve('server'),
+                'reply_client',
+                \@visible_nodes,
+                $wheel_id
+            );
+        },
+        # Get cloud's instance list
+        # =========================
+        getinstances    => sub {
+            my ( $kernel, $heap, $wheel_id ) = @_;
+            $kernel->post(
+                $kernel->alias_resolve('server'),
+                'reply_client',
+                'work in progress',
+                $wheel_id
+            );
+        },
+        # Get cloud's hypervisor list
+        # ===========================
+        gethypervisors  => sub {
+            my ( $kernel, $heap, $wheel_id ) = @_;
+            $kernel->post(
+                $kernel->alias_resolve('server'),
+                'reply_client',
+                'work in progress',
+                $wheel_id
+            );
         }
     }
 }

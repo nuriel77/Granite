@@ -14,7 +14,7 @@ use Moose;
          'Granite::Utils::ModuleLoader';
 
 use namespace::autoclean;
-use vars qw($log $debug $daemon);
+use vars qw($log $debug $engine_session);
 
 =head1 NAME
 
@@ -147,12 +147,12 @@ sub _init {
 
     # Start main session
     # ==================
-    my $session = POE::Session->create(
+    $engine_session = POE::Session->create(
         inline_states => {
             _start          => sub {
                 my ($heap, $kernel, $sender, $session ) = @_[ HEAP, KERNEL, SENDER, SESSION ];
 
-                $log->debug('[ ' . $session->ID() . ' ] Sender: ' . $sender);
+                $log->debug('[ ' . $session->ID() . ' ] Engine session started.');
                 $heap->{parent} = $sender;
                 $kernel->alias_set('engine');
 
@@ -178,9 +178,11 @@ sub _init {
             get_nodes       => \&_get_node_list,
             watch_queue     => \&Granite::Component::Scheduler::Queue::Watcher::run,
             _default        => \&handle_default,
+            terminate       => sub { $_[KERNEL]->post('_stop') },
             _stop           => \&terminate,
         },
-        heap => { scheduler => $self->scheduler, self => $self }
+        heap => { scheduler => $self->scheduler, self => $self },
+        options => { trace => $debug, debug => $debug },
     ) or $log->logcroak('[ ' . $_[SESSION]->ID() .  " ] can't POE::Session->create: $!" );
 
     $poe_kernel->run();
@@ -262,16 +264,25 @@ sub _init_modules {
 
 =head3 B<child_sessions>
 
-  Used to maintain state of children sessions
+  Used to maintain status of engine's created sessions
 
 =cut
 
 sub child_sessions {
     my ($heap, $kernel, $operation, $child) = @_[HEAP, KERNEL, ARG0, ARG1];
+
     if ($operation eq 'create' or $operation eq 'gain') {
+        $log->debug('[ ' . $_[SESSION]->ID()
+                    . ' ] New child session spawned:'
+                    . ' (' . $child->ID() . ')'
+        );
         $heap->{child_count}++;
     }
     elsif ($operation eq 'lose') {
+        $log->debug('[ ' . $_[SESSION]->ID()
+                    . ' ] Child session terminated:'
+                    . ' (' . $child->ID() . ')'
+        );
         $heap->{child_count}--;
     }
 }
@@ -320,7 +331,7 @@ sub init_controller {
 
 sub handle_default {
     my ($event, $args) = @_[ARG0, ARG1];
-    $log->logconfess(
+    $log->logcroak(
       'Session [ ' . $_[SESSION]->ID .
       " ] caught unhandled event '$event' with " . Dumper @{$args}
     );

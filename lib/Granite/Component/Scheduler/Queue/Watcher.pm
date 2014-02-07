@@ -31,7 +31,7 @@ sub run {
         ) or $log->logcroak('[ ' . $_[SESSION]->ID() .  " ] can't POE::Session->create: $!" );
     
     $log->debug( '[ ' . $_[SESSION]->ID()
-                . '] QueueWatcher parent session created with ID: '
+                . ' ] QueueWatcher session created with ID: '
                 . $parent_session->ID() );
     return;
 }

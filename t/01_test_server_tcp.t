@@ -19,7 +19,7 @@ sub run_test {
     $g = Granite->new();
 
     # Disable logging
-    silent_logger($Granite::log);
+    silence_logger($Granite::log);
 
     # Adjust running config for testing purposes
     delete $g->{cfg}->{server}->{cacert};

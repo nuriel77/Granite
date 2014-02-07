@@ -242,7 +242,7 @@ sub run {
                     ListenQueue  => $self->max_clients,
                     Reuse        => 'yes',
                     SuccessEvent => 'client_accept',
-                    FailureEvent => 'server_error',
+                    FailureEvent => 'server_session_error',
                 ) or $log->logcroak('[ ' . $_[SESSION]-ID()
                                     . " ] can't POE::Wheel::SocketFactory->new: $!" );
 
@@ -278,19 +278,43 @@ sub run {
 
 
 
+
 =head3 B<server_error>
 
-  Handler for SocketFactory FailureEvent
+  Handler for server's parent session error event
 
 =cut
 
 sub server_error {
     my ($operation, $errnum, $errstr ) = @_[ARG0..ARG2];
+
+    $log->error('[ ' . $_[SESSION]->ID() 
+                . " ] Server error from session ID "
+                . $_[SENDER]->ID() . ( $errnum && $errstr ? ": ($errnum) $errstr" : '' ) )
+        if looks_like_number($_[SENDER]->ID());
+
+    $_[HEAP]->{server}->{"2"}->{wheel}->put(
+        "Warning: Server error detected. Check server logs. at state: " . $_[STATE] . "\n"
+    );
+# if _canwrite($_[HEAP], $_[SENDER]->ID());
+
+
+}
+
+
+=head3 B<server_session_error>
+
+  Handler for SocketFactory FailureEvent
+
+=cut    
+
+sub server_session_error {
+    my ($operation, $errnum, $errstr ) = @_[ARG0..ARG2];
     delete $_[HEAP]->{server};
     $client_namespace = {};
     $log->logdie('[ ' . $_[SESSION]->ID() 
-                . " ] Server error from session ID "
-                . $_[SENDER]->ID() . ( $errnum ? ": ($errnum) $errstr" : '' ) )
+                . " ] SocketFactory FailureEvent from session ID "
+                . $_[SENDER]->ID() . ( $errnum && $errstr ? ": ($errnum) $errstr" : '' ) )
         if looks_like_number($_[SENDER]->ID());
 }
 
@@ -382,7 +406,7 @@ sub _client_disconnect {
 =cut
 
 sub _client_reply {
-    my ( $heap, $kernel, $reply, $wheel_id ) = @_[ HEAP, KERNEL, ARG0, ARG1 ];
+    my ( $heap, $kernel, $reply, $wheel_id, $postback ) = @_[ HEAP, KERNEL, ARG0, ARG1, ARG2 ];
 
     $log->debug('[ ' . $_[SESSION]->ID() . " ]->($wheel_id) At _client_reply")
         if $debug;
@@ -397,6 +421,9 @@ sub _client_reply {
         $output . "\n"
     ) if $canwrite;
 
+    if ( $postback && ref $postback eq 'POE::Session::AnonEvent' ){
+        $postback->();
+    }
 }
 
 
@@ -600,6 +627,18 @@ sub _sanitize_input {
                     . ") Got client input: '" . $input . "'");
     }
     return $input;
+}
+
+=head3 B<_canwrite>
+
+  Check if can write to client's socket.
+
+=cut
+
+sub _canwrite {
+    my ($heap, $wheel_id) = @_;
+    exists $heap->{server}->{$wheel_id}->{wheel}
+      && ( ref( $heap->{server}->{$wheel_id}->{wheel} ) eq 'POE::Wheel::ReadWrite' );
 }
 
 
