@@ -287,7 +287,7 @@ sub init_controller {
 
     my $output = '';
     
-    $log->debug('[' . $_[SESSION]->ID(). " ] At init_controller with command: '$cmd'");
+    $log->debug('[ ' . $_[SESSION]->ID(). " ] At init_controller with command: '$cmd'");
     
     # Get all known commands
     # ======================
@@ -325,26 +325,6 @@ sub handle_default {
       " ] caught unhandled event '$event' with " . Dumper @{$args}
     );
 }
-
-
-#
-#   Temporarily here:
-#
-sub _get_node_list {
-    my ( $heap, $kernel ) = @_[ HEAP, KERNEL ];
-    my ( $session, $next_event, $wheel_id ) = @_[ ARG0..ARG2 ];
-
-    my $node_array = $heap->{self}->scheduler->{nodes}->list_nodes;
-    my @visible_nodes = grep defined, @{$node_array};
-
-    if ( $debug ){
-        $log->debug( '[ ' . $_[SESSION]->ID() . ' ] Defined Node: ' . Dumper $_ ) for @visible_nodes;
-    }
-
-    $log->debug( '[ ' . $_[SESSION]->ID() . ' ] Number of visible scheduler nodes: ' . scalar @visible_nodes );
-    $kernel->post($session, $next_event, \@visible_nodes, $wheel_id);
-}
-
 
 
 __PACKAGE__->meta->make_immutable(inline_constructor => 0);
