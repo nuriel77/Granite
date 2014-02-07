@@ -287,6 +287,8 @@ sub init_controller {
 
     my $output = '';
     
+    $log->debug('[' . $_[SESSION]->ID(). " ] At init_controller with command: '$cmd'");
+    
     # Get all known commands
     # ======================
     my @commands = keys $heap->{self}->commands;

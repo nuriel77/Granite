@@ -27,6 +27,10 @@ BEGIN {
 }
 
 
+    
+$SIG{INT} = \&DEAD;
+    
+
 local $| = 1;
 
 
@@ -49,9 +53,9 @@ my $test_connections = $ENV{GRANITE_TEST_MAX_CONNECTIONS} || 10;
 $client_connections = 0;
 
 #
-# We plan 6 tests per client connection + 5 base tests
+# We plan 7 tests per client connection + 5 base tests
 #
-plan tests => 5 + ( 6 * $test_connections);
+plan tests => 5 + ( 7 * $test_connections);
 
 $_[HEAP]->{clients} = {};
 
@@ -59,6 +63,7 @@ $_[HEAP]->{clients} = {};
 # IO::Socket::SSL - see http://search.cpan.org/~sullr/IO-Socket-SSL-1.966/lib/IO/Socket/SSL.pm
 #
 my $run = sub { 
+
     return POE::Session->create(
         inline_states => {
             _start        => sub {
@@ -70,9 +75,9 @@ my $run = sub {
                     $server = $heap->{worker};
                 }
                 $kernel->sig_child($server->PID, "got_sig");
-                $kernel->delay('client_is_next'=>2);           
+                $kernel->delay('client_is_next'=>1);           
             },
-            got_sig => sub { warn "At get signal\n"; $_[KERNEL]->post('_stop'); },
+            got_sig => sub { $_[KERNEL]->post('_stop'); },
             client_is_next => sub {
                 $client_connections++;
                 my ($err);
@@ -125,8 +130,8 @@ my $run = sub {
                 print {$socket} "$password\n";
                 if ( my $input = <$socket> ){
                     chomp($input);
-                    if ( $input =~ /^.*Authenticated!/ ){ 
-                        $_[KERNEL]->yield('client_is_authenticated', $socket)
+                    if ( $input =~ /^\[(\d+)\] Authenticated!/ ){ 
+                        $_[KERNEL]->yield('client_is_authenticated', $socket, $1);
                     }
                     else {
                         diag ( "Server returned '$input'\n" );
@@ -138,21 +143,26 @@ my $run = sub {
                 }
             },
             client_is_authenticated => sub {
-                my ($kernel, $heap, $socket ) = @_[ KERNEL, HEAP, ARG0 ];
+                my ($kernel, $heap, $socket, $wheel_id ) = @_[ KERNEL, HEAP, ARG0, ARG1 ];
                 pass ( "Authentication successful" );
-                $_[KERNEL]->yield('client_server_can_readwrite', $socket );
+                $_[KERNEL]->yield('client_server_can_readwrite', $socket, $wheel_id );
             },
-            client_server_can_readwrite     => sub {
+            client_server_can_readwrite     => sub {               
                 my $socket = $_[ARG0];
+                my $server_wheel_id = $_[ARG1];
                 my $sessionId = $_[SESSION]->ID();
-                print {$socket} "Test readwrite ".$sessionId."\n";
+                my $expected_string = '\['.$server_wheel_id.'\] Test OK for wheel ID '.$server_wheel_id; 
+                
+                print {$socket} "test\n";
                 if ( my $reply = <$socket> ){
                     chomp($reply);
-                    if ( $reply =~ /^.*Your input: Test readwrite $sessionId$/ ){
-                        $_[KERNEL]->delay('_stop' => 1, $_[SESSION]->ID() );
+                    # example reply: [11] Test OK for wheel ID 11
+                    if ( $reply =~ /^$expected_string/ ){
+                        pass ('Expected reply from server OK');
+                        $_[KERNEL]->post($_[SESSION], '_stop' );
                     }
                     else {
-                        diag ( "Unexpected reply from server: '$reply'" );
+                        diag ( "Unexpected reply from server: '$reply', we expected: '$expected_string'" );
                         $_[KERNEL]->post($_[SESSION], 'failed_readwrite');
                     }
                 }
@@ -221,7 +231,7 @@ sub run_test {
     $g = Granite->new();
 
     # Disable logging
-    silent_logger($Granite::log);
+    #silent_logger($Granite::log);
 
     # Adjust running config for testing purposes
     delete $g->{cfg}->{server}->{cacert};
