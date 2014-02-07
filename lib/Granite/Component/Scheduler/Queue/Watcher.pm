@@ -24,10 +24,12 @@ sub run {
                 _start => \&parent_start,
                 _stop  => \&parent_stop,
                 _child => \&parent_spawn_child,
+                # TODO: Create local default handler, otherwise we kill the engine
                 _default => \&Granite::Engine::handle_default,
                 result => \&parent_got_result,
             },
-            heap => { scheduler => $scheduler->{(keys %{$scheduler})[0]} }
+            heap => { scheduler => $scheduler->{(keys %{$scheduler})[0]} },
+            options => { trace => $debug, debug => $debug },
         ) or $log->logcroak('[ ' . $_[SESSION]->ID() .  " ] can't POE::Session->create: $!" );
     
     $log->debug( '[ ' . $_[SESSION]->ID()
@@ -82,7 +84,8 @@ sub create_child {
             },
             next   => \&child_process_input,
         },
-        heap => { scheduler => $_[HEAP]->{scheduler} }
+        heap => { scheduler => $_[HEAP]->{scheduler} },
+        options => { trace => $debug, debug => $debug },
     ) or $log->logdie('[ ' . $_[SESSION]->ID() .  " ] can't POE::Session->create: $!" );
 
     $log->info('[ ' . $_[SESSION]->ID() . ' ] Child session started with ID: [ ' . $session->ID() . ' ]');

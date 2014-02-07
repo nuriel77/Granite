@@ -257,9 +257,11 @@ sub run {
             server_error      => \&server_error,
             server_shutdown   => \&_terminate_server,
             client_error      => \&_client_error,
+            # TODO: Create local default handler, otherwise we kill the engine
             _default          => \&Granite::Engine::handle_default,
             _stop             => \&server_error,
         },
+        options => { trace => $debug, debug => $debug },
     ) or $log->logcroak('[ ' . $sessionId .  " ] can't POE::Session->create: $!" );
 
     if ( $self->_has_unix_socket ){ 
@@ -292,13 +294,6 @@ sub server_error {
                 . " ] Server error from session ID "
                 . $_[SENDER]->ID() . ( $errnum && $errstr ? ": ($errnum) $errstr" : '' ) )
         if looks_like_number($_[SENDER]->ID());
-
-    $_[HEAP]->{server}->{"2"}->{wheel}->put(
-        "Warning: Server error detected. Check server logs. at state: " . $_[STATE] . "\n"
-    );
-# if _canwrite($_[HEAP], $_[SENDER]->ID());
-
-
 }
 
 
@@ -388,44 +383,18 @@ sub _close_delayed {
 =cut
 
 sub _client_disconnect {
-    my ( $heap, $kernel, $wheel_id ) = @_[ HEAP, KERNEL, ARG0 ];
+    my ( $heap, $kernel, $args ) = @_[ HEAP, KERNEL, ARG0 ];
 
-    $log->debug('[ ' . $_[SESSION]->ID() . " ]->($wheel_id) At _client_disconnect")
+    my $wheel_id = shift @{$args};
+
+    $log->debug('[ ' . $_[SESSION]->ID() . " ]->($wheel_id) At _client_disconnect" )
         if $debug;
 
     $log->info('[ ' . $_[SESSION]->ID() . ' ]->(' . $wheel_id . ") Client disconnecting (delayed).");
 
-    $kernel->delay( close_delayed => 1, $wheel_id )
+    $kernel->delay( close_delayed => 0.2, $wheel_id )
       unless ( $heap->{server}->{$wheel_id}->{disconnecting}++ );
 }
-
-=head3 B<_client_reply>
-
-  Reply to client
-
-=cut
-
-sub _client_reply {
-    my ( $heap, $kernel, $reply, $wheel_id, $postback ) = @_[ HEAP, KERNEL, ARG0, ARG1, ARG2 ];
-
-    $log->debug('[ ' . $_[SESSION]->ID() . " ]->($wheel_id) At _client_reply")
-        if $debug;
-
-    my $canwrite = exists $heap->{server}->{$wheel_id}->{wheel}
-      && ( ref( $heap->{server}->{$wheel_id}->{wheel} ) eq 'POE::Wheel::ReadWrite' );
-
-    my $output = "[" . $wheel_id . "] ";
-    $output .= ref $reply ? Dumper $reply : $reply;
-
-    $heap->{server}->{$wheel_id}->{wheel}->put(
-        $output . "\n"
-    ) if $canwrite;
-
-    if ( $postback && ref $postback eq 'POE::Session::AnonEvent' ){
-        $postback->();
-    }
-}
-
 
 
 =head3 B<_client_input>
@@ -448,8 +417,7 @@ sub _client_input {
 
     # Assign boolean if can write to socket
     # =====================================
-    my $canwrite = exists $heap->{server}->{$wheel_id}->{wheel}
-      && ( ref( $heap->{server}->{$wheel_id}->{wheel} ) eq 'POE::Wheel::ReadWrite' );
+    my $canwrite = _canwrite($heap, $wheel_id);
 
     # Check if client has already
     # been verified and registered
@@ -467,7 +435,9 @@ sub _client_input {
                 "[" . $wheel_id . "] Test OK for wheel ID $wheel_id\n"
             );
         }
-        else {      	
+        # For other input we send to the controller
+        # =========================================
+        else {
 	        $log->debug('[ ' . $_[SESSION]->ID() . " ] Sanitized input and left with: '$input'" );
 	        my $engine_session = $_[KERNEL]->alias_resolve('engine');
 	        $_[KERNEL]->post( $engine_session , 'client_commands', $input, $wheel_id );
@@ -475,6 +445,29 @@ sub _client_input {
     }
 }
 
+
+=head3 B<_client_reply>
+
+  Reply to client
+
+=cut
+
+sub _client_reply {
+    my ( $heap, $kernel, $reply, $wheel_id, $postback ) = @_[ HEAP, KERNEL, ARG0, ARG1, ARG2 ];
+
+    $log->debug('[ ' . $_[SESSION]->ID() . " ]->($wheel_id) At _client_reply")
+        if $debug;
+
+    my $canwrite = _canwrite($heap, $wheel_id);
+    my $output = '[' . $wheel_id . '] ';
+    $output .= ref $reply ? Dumper $reply : $reply;
+    $heap->{server}->{$wheel_id}->{wheel}->put( $output . "\n" )
+        if $canwrite;
+
+    if ( $postback && ref $postback eq 'POE::Session::AnonEvent' ){
+        $postback->();
+    }
+}
 
 =head3 B<_client_accept>
 

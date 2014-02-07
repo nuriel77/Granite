@@ -82,10 +82,11 @@ sub _get_commands_hash {
         # =========================
         getinstances    => sub {
             my ( $kernel, $heap, $wheel_id ) = @_;
+            my @instances = $heap->{self}->cloud->get_all_instances;
             $kernel->post(
                 $kernel->alias_resolve('server'),
                 'reply_client',
-                'work in progress',
+                \@instances,
                 $wheel_id
             );
         },
@@ -99,7 +100,24 @@ sub _get_commands_hash {
                 'work in progress',
                 $wheel_id
             );
-        }
+        },
+        # Client disconnect
+        # =================
+        exit            => sub {
+            my ( $kernel, $heap, $wheel_id ) = @_;
+            my $server = $kernel->alias_resolve('server');
+            my $postback = $server->postback( "disconnect", $wheel_id );
+            $kernel->post(
+                $server,
+                'reply_client',
+                'Goodbye! (disconnecting...)',
+                $wheel_id,
+                $postback
+            );
+        },
+        # Alias callback
+        # ==============
+        quit => sub { return 'exit' },
     }
 }
 

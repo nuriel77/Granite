@@ -302,7 +302,7 @@ sub init_controller {
     
     # Get all known commands
     # ======================
-    my @commands = keys $heap->{self}->commands;
+    my @commands = sort keys $heap->{self}->commands;
     
     # Check if use command exists.
     # Return the list of commands to user
@@ -312,12 +312,18 @@ sub init_controller {
     # the POE variables + client's wheel_id
     # =====================================
     unless ( $cmd ~~ @commands ) {
-        $output = "Commands: " . ( join ', ', @commands );
+        $output = "Commands:\n" . ( join "\n", @commands );
         my $server_session = $kernel->alias_resolve('server');
         $kernel->post( $server_session , 'reply_client', $output, $wheel_id );
     }
     else {
-        $heap->{self}->commands->{"$cmd"}->( $kernel, $heap, $wheel_id );
+        $log->info('[ ' . $_[SESSION]->ID() . " ] Executing client ($wheel_id) command '$cmd'");
+        my $ret_val = $heap->{self}->commands->{"$cmd"}->( $kernel, $heap, $wheel_id );
+
+        # Command alias "callback"
+        # ========================
+        $heap->{self}->commands->{"$ret_val"}->( $kernel, $heap, $wheel_id )
+            if ( $ret_val && $ret_val ~~ @commands );
     }
 
 }
