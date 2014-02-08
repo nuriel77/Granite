@@ -38,7 +38,10 @@ sub run {
     return;
 }
 
-sub parent_start { &create_child; }
+sub parent_start {
+    $_[KERNEL]->alias_set('QueueWatcher parent');
+    &create_child;
+}
 
 sub parent_spawn_child {
     my ($heap, $kernel, $operation, $child) = @_[HEAP, KERNEL, ARG0, ARG1];
@@ -65,8 +68,6 @@ sub parent_spawn_child {
                         . $heap->{scheduler}->{metadata}->{reservation_flush_interval}
                         . ' seconds');
             $kernel->delay('_start' => $heap->{scheduler}->{metadata}->{reservation_flush_interval} || 10 );
-            #sleep $heap->{scheduler}->{metadata}->{reservation_flush_interval};
-            #&create_child;
         }
     }
 }
@@ -79,6 +80,7 @@ sub create_child {
         {
             _start => sub
             {
+                $_[KERNEL]->alias_set("QueueWatcher child");
                 $_[HEAP]->{parent} = $_[SENDER];
                 $_[KERNEL]->yield( 'next', $scheduler )
             },
@@ -121,10 +123,7 @@ sub child_process_input {
     if ( ref $queue_data eq 'ARRAY' && @{$queue_data} > 0 ) {
         $log->debug('[ ' . $_[SESSION]->ID . ' ] Have ' . scalar @{$queue_data}
                    . ' jobs(s) from all queues. Posting to parent. Child terminating.');
-
-        #$log->debug("[ " . $_[SESSION]->ID . " ] Have queue data: " . Dumper $queue_data )
-        #    if $debug;
-
+        $_[KERNEL]->alias_remove("QueueWatcher child");
         $kernel->post($heap->{parent}, 'result', $_[SESSION]->ID(), $queue_data);
     }
     else {

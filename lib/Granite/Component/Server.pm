@@ -443,7 +443,7 @@ sub _client_input {
         else {
 	        $log->debug('[ ' . $_[SESSION]->ID() . " ] Sanitized input and left with: '$input'" );
 	        my $engine_session = $_[KERNEL]->alias_resolve('engine');
-	        $_[KERNEL]->post( $engine_session , 'client_commands', $input, $wheel_id );
+	        $_[KERNEL]->post( $engine_session , 'client_commands', "$input", $wheel_id );
         }
     }
 }

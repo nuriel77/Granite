@@ -7,7 +7,6 @@ use Granite::Component::Scheduler::Queue::Watcher;
 use Cwd 'getcwd';
 use POE;
 use POE::Wheel::Run;
-use POE::Component::DebugShell;
 use Data::Dumper::Concise;
 use Moose;
     with 'Granite::Engine::Logger',
@@ -86,6 +85,15 @@ has logger     => (
     required => 1
 );
 
+=item * L<client_privmode>
+=cut
+
+has client_privmode => (
+    is => 'rw',
+    isa => 'HashRef',
+    lazy => 1,
+    default => sub {{}},
+);
 
 =back
 
@@ -178,7 +186,6 @@ sub _init {
             },
             client_commands => \&_controller,
             get_nodes       => \&_get_node_list,
-            debug_shell     => sub { POE::Component::DebugShell->spawn(); },
             watch_queue     => \&Granite::Component::Scheduler::Queue::Watcher::run,
             _default        => \&handle_default,
             terminate       => sub { $_[KERNEL]->post('_stop') },
@@ -262,7 +269,7 @@ sub _init_modules {
     # =========
     $self->_set_cloud ( $self->modules->{cloud}->{ (keys %{$self->modules->{cloud}})[0] } )
         && delete $self->modules->{cloud};
-    
+        
 }
 
 =head3 B<child_sessions>
@@ -297,15 +304,40 @@ sub child_sessions {
 =cut
 
 sub _controller {
-    my ($kernel, $heap, $cmd, $wheel_id) = @_[KERNEL, HEAP, ARG0, ARG1];
+    my ($kernel, $heap, $input, $wheel_id) = @_[KERNEL, HEAP, ARG0, ARG1];
+
+    my ($cmd, $args) = split(' ', $input);
 
     my $output = '';
-    
-    $log->debug('[ ' . $_[SESSION]->ID(). " ] At _controller with command: '$cmd'");
+    my $server_session = $kernel->alias_resolve('server');
+    $log->debug('[ ' . $_[SESSION]->ID()
+                . " ] At _controller with command: '$cmd'"
+                . ( $args ? ' and args: ' . $args : '' )
+    );
     
     # Get all known commands
     # ======================
+    if ( $cmd eq 'privmode' ){
+        $heap->{self}->client_privmode->{$wheel_id} = 1;
+        $kernel->post( $server_session, 'reply_client', 'privmode enabled', $wheel_id );
+        return;
+    }
+    elsif ( $cmd eq 'usermode' ){
+        delete $heap->{self}->client_privmode->{$wheel_id};
+        $kernel->post( $server_session, 'reply_client', 'privmode enabled', $wheel_id );
+        return;
+    }
+
     my @commands = sort keys $heap->{self}->client_commands;
+    if ( exists $heap->{self}->client_privmode->{$wheel_id} ){
+        $log->debug('[ ' . $_[SESSION]->ID(). " ] User $wheel_id is in privmode");
+        for ( sort keys $heap->{self}->engine_commands ) {
+            next if $_ ~~ @commands;
+            push @commands, $_;
+            $heap->{self}->client_commands->{$_} = $heap->{self}->engine_commands->{$_};
+        }
+    }
+
     
     # Check if use command exists.
     # Return the list of commands to user
@@ -316,23 +348,22 @@ sub _controller {
     # =====================================
     unless ( $cmd ~~ @commands ) {
         $output = "Commands:\n" . ( join "\n", @commands );
-        my $server_session = $kernel->alias_resolve('server');
-        $kernel->post( $server_session , 'reply_client', $output, $wheel_id );
+        $kernel->post( $server_session, 'reply_client', $output, $wheel_id );
     }
     else {
         $log->info('[ ' . $_[SESSION]->ID() . " ] Executing client ($wheel_id) command '$cmd'");
-        my $ret_val = $heap->{self}->client_commands->{"$cmd"}->( $kernel, $heap, $wheel_id );
+        my $ret_val = $heap->{self}->client_commands->{"$cmd"}->( $kernel, $heap, $wheel_id, $args );
 
         # Command alias "callback"
         # ========================
-        $heap->{self}->client_commands->{"$ret_val"}->( $kernel, $heap, $wheel_id )
+        $heap->{self}->client_commands->{"$ret_val"}->( $kernel, $heap, $wheel_id, $args )
             if ( $ret_val && $ret_val ~~ @commands );
     }
 
 }
 
 
-=head3
+=head3 B<handle_default>
 
   Default method to capture unrecognized POE requests
 
@@ -345,6 +376,7 @@ sub handle_default {
       " ] caught unhandled event '$event' with " . Dumper @{$args}
     );
 }
+
 
 
 __PACKAGE__->meta->make_immutable(inline_constructor => 0);

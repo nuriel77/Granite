@@ -3,6 +3,8 @@ use Moose::Role;
 use Try::Tiny;
 use Data::Dumper;
 
+use vars qw/$poe_api/;
+
 =head1 DESCRIPTION
 
   Controller roles for the engine.
@@ -30,6 +32,7 @@ has client_commands => (
     is => 'ro',
     isa => 'HashRef',
     default => \&_get_client_commands,
+    writer  => '_set_client_commands',
     lazy => 1,
 );
 
@@ -39,8 +42,6 @@ has engine_commands => (
     default => \&_get_engine_commands,
     lazy => 1,
 );
-
-no Moose; 
 
 =head2 METHODS
 
@@ -59,41 +60,6 @@ sub _get_client_commands {
                 'reply_client',
                 'pong',
                 $wheel_id
-            );
-        },
-        # Opens debug shell on server side
-        # TODO: 'exit' method does not exists
-        # contrary to what is claimed in the 
-        # docs of POE::Component::DebugShell
-        debugshell      => sub {
-            my ( $kernel, $heap, $wheel_id ) = @_;
-            unless ( $ENV{GRANITE_FOREGROUND} ) {
-                $kernel->post(
-                    $kernel->alias_resolve('server'),
-                    'reply_client',
-                    'Cannot open debug console when daemonized',
-                    $wheel_id
-                );
-            }
-            else {
-                $kernel->post(
-                    $kernel->alias_resolve('engine'),
-                    'debug_shell',
-                );
-            }
-        },
-        # Shutdown the server session
-        # ===========================
-        server_shutdown => sub {
-            my ( $kernel, $heap, $wheel_id ) = @_;
-            my $server = $kernel->alias_resolve('server');
-            my $postback = $server->postback( "server_shutdown", $wheel_id );
-            $kernel->post(
-                $server,
-                'reply_client',
-                'Shutting down server. Goodbye.',
-                $wheel_id,
-                $postback,
             );
         },
         # Get scheduler's node list
@@ -175,7 +141,74 @@ sub _get_client_commands {
 
 sub _get_engine_commands {
     {
-        ping        => sub { return 'pong' }
+        ping => sub { return 'pong' },
+        show_session_aliases => sub {
+            my ( $kernel, $heap, $wheel_id, $sessionId ) = @_;
+ 	   		$poe_api = $heap->{self}->modules->{debugShell}
+                            ->{(keys %{$heap->{self}->modules->{debugShell}})[0]}->new
+                unless $poe_api;
+		    my $output = $poe_api->show_sessions_aliases([$sessionId]);
+		    $kernel->post(
+        		$kernel->alias_resolve('server'),
+                'reply_client',
+            	$output,
+                $wheel_id,
+            );
+        },
+        show_session_stats => sub {
+            my ( $kernel, $heap, $wheel_id, $sessionId ) = @_;
+ 	   		$poe_api = $heap->{self}->modules->{debugShell}
+                            ->{(keys %{$heap->{self}->modules->{debugShell}})[0]}->new
+                unless $poe_api;
+		    my $output = $poe_api->show_sessions_stats([$sessionId]);
+		    $kernel->post(
+        		$kernel->alias_resolve('server'),
+                'reply_client',
+            	$output,
+                $wheel_id,
+            );
+        },
+        show_sessions_queue => sub {
+        	my ( $kernel, $heap, $wheel_id ) = @_;
+ 	   		$poe_api = $heap->{self}->modules->{debugShell}
+                            ->{(keys %{$heap->{self}->modules->{debugShell}})[0]}->new
+                unless $poe_api;
+		    my $output = $poe_api->show_sessions_queue;
+		    $kernel->post(
+        		$kernel->alias_resolve('server'),
+                'reply_client',
+            	$output,
+                $wheel_id,
+            );
+        },
+        show_sessions   => sub {
+        	my ( $kernel, $heap, $wheel_id ) = @_;
+ 	   		$poe_api = $heap->{self}->modules->{debugShell}
+                            ->{(keys %{$heap->{self}->modules->{debugShell}})[0]}->new
+                unless $poe_api;
+		    my $output = $poe_api->show_sessions;
+		    $kernel->post(
+        		$kernel->alias_resolve('server'),
+                'reply_client',
+            	$output,
+                $wheel_id,
+            );
+	    },
+	    
+        # Shutdown the server session
+        # ===========================
+        server_shutdown => sub {
+            my ( $kernel, $heap, $wheel_id ) = @_;
+            my $server = $kernel->alias_resolve('server');
+            my $postback = $server->postback( "server_shutdown", $wheel_id );
+            $kernel->post(
+                $server,
+                'reply_client',
+                'Shutting down server. Goodbye.',
+                $wheel_id,
+                $postback,
+            );
+        },
     }
 }
 
@@ -246,6 +279,8 @@ sub _boot_instance {
 
     return 1;
 }
+
+no Moose; 
 
 =head1 AUTHOR
 
