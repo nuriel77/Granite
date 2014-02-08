@@ -39,7 +39,7 @@ sub run {
 }
 
 sub parent_start {
-    $_[KERNEL]->alias_set('QueueWatcher parent');
+    $_[KERNEL]->alias_set('QueueWatcher');
     &create_child;
 }
 
@@ -103,15 +103,19 @@ sub parent_got_result {
                 . $sessionId . ' ]' )
         if $debug;
 
-    # Save data, or pass back to engine.
+    # Save data, or pass back to engine
+    # =================================
     $heap->{scheduler}->{queue} = { by => $sessionId, data => $data };
 
+    # Get jobs from the reservation queue only
+    # ========================================
     my $reservation_queue = $heap->{scheduler}->{metadata}->{reservation_queue};
+    my @in_reservation_queue = grep { $_->{partition} eq $reservation_queue } @{$data};
 
-    my $in_reservation_queue = grep { $_->{partition} eq $reservation_queue } @{$data};
-
-    my $sess = $_[KERNEL]->alias_resolve('engine');
-    $_[KERNEL]->post( $sess , 'process_res_q' );
+    # Post to parent queue event listener
+    # ===================================
+    my $qparent_session = $_[KERNEL]->alias_resolve('QueueParent');
+    $_[KERNEL]->post( $qparent_session , 'process_new_queue_data', \@in_reservation_queue );
  
 }
 

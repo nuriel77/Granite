@@ -1,54 +1,91 @@
 package Granite::Component::Scheduler::Queue;
-use POE;
+use Moose;
+use JSON::XS;
+use POE::Session::YieldCC;
 use POE::XS::Queue::Array;
 use Granite::Component::Scheduler::Job;
-use vars qw($log $debug $scheduler $pqa);
-use Moose;
+use Data::Dumper;
+use vars qw($log $debug $scheduler $pqa %job_queue);
 
-our $child_max = 1;
+before 'new' => sub {
+    my $cache_dir = $Granite::cfg->{main}->{cache_dir};
+    if ( ! $cache_dir ){
+        $Granite::log->logcroak('Cannot find cache_dir in configuration file');
+    }
+    elsif ( ! -w $cache_dir ){
+        $Granite::log->logcroak("No write permissions on cache directory '$cache_dir'")
+    }
+    $pqa = POE::XS::Queue::Array->new();
+};
 
-#before 'new' => sub {
-#    $pqa = POE::XS::Queue::Array->new();
-#};
+sub _compare_jobs { "\L$_[0]" cmp "\L$_[1]" }
 
 
-sub process_queue {
-    my ( $self, $heap, $sessionId ) = @_;
+sub init {
+    my ( $kernel, $heap, $log, $debug ) = @_[KERNEL, HEAP, ARG0,ARG1 ];
+    $log->debug('[ ' . $_[SESSION]->ID . ' ] Initializing Granite queue');
+    POE::Session::YieldCC->create(
+        inline_states => {
+            _start => sub {
+                $_[KERNEL]->alias_set('QueueParent');
+                $log->debug('[ ' . $_[SESSION]->ID . ' ] At POE::Session::YieldCC');
+                $_[KERNEL]->yield('event_listener');
+            },
+            event_listener  => \&_wait_for_event,
+            process_queue   => \&_process_queue,
+        }
+    )
+}
+
+sub _wait_for_event {
+    $Granite::log->debug('[ ' . $_[SESSION]->ID . ' ] Listening for new events');
+    my ( $ok, $args ) = $_[SESSION]->wait('process_new_queue_data');
+    if ( $ok ){
+        $Granite::log->info('[ ' . $_[SESSION]->ID . " ] 'process_new_queue_data' event triggered");
+        $_[KERNEL]->post($_[SESSION], 'process_queue', $args);
+    }
+    else {
+        $Granite::log->error('[ ' . $_[SESSION]->ID
+                            . " ] 'process_new_queue_data' event"
+                            . ' triggered with unknown failure!');
+        $_[KERNEL]->delay('event_listener' => 2);
+    }
+}
+
+sub _process_queue {
+    my ( $heap, $kernel, $args ) = @_[ HEAP, KERNEL, ARG0 ];
     ( $log, $debug ) = ( $Granite::log, $Granite::debug );
 
-    my $scheduler = $heap->{scheduler}->{(keys %{$heap->{scheduler}})[0]};
-
-    $log->debug('[ ' . $sessionId . ' ] Entered ' . __PACKAGE__
-                . '::process_queue from caller ID [ ' . $scheduler->{queue}->{by} . ' ]' )
+    $log->debug('[ ' . $_[SESSION]->ID . ' ] At process_queue' )
         if $debug;
 
-    #my @_queue = $pqa->peek_items( sub { 1; } );
-    #_enqueue(\@_queue, $scheduler->{queue}->{data});
+    # Get all items in active queue
+    # compare to items from the scheduler's
+    # reservation queue and skip if already enqueued
+    my @_queue = $pqa->peek_items( sub { 1; } );
+    _enqueue(\@_queue, $args);
+    $log->debug('Have ' . $pqa->get_item_count() . ' job(s) in active queue');
+    $_[KERNEL]->delay('event_listener' => 0.3);
 
-#    $log->debug('Have ' . $pqa->get_item_count() . ' job(s) in active queue');
-
-    for my $job ( @{$scheduler->{queue}->{data}} ){
-        #POE::Session->create
-        #(
-        #   inline_states =>
-        #    {
-        #        _start => sub { $_[KERNEL]->yield('next') },
-        #        next => sub { warn "At next from " . $_[SESSION]->ID() },
-        #        _stop => sub { warn "Done : " . $_[SESSION]->ID() }
-        #    },
-        #) or $log->logcluck('[ ' . $_[SESSION]->ID() .  " ] can't POE::Session->create: $!" );
-        my $job_api = Granite::Component::Scheduler::Job->new( job => $job );
-        eval { $job_api->process };
-        die $@ if $@;
-        
-    }
 }
 
 sub _enqueue {
     my ( $queue, $data ) = @_;
     for my $job ( @{$data} ) {
-        $pqa->enqueue($job->{priority}, $job)
-            unless grep { $_->[2]->{job_id} == $job->{job_id} } @{$queue};
+        # Check if this job is already in the active queue
+        unless ( grep { $_->[2]->{job_id} == $job->{job_id} } @{$queue} ){
+            my $job_api = Granite::Component::Scheduler::Job->new( job => $job );
+            eval { $job_api->process };
+            if ( $@ ){
+                $log->error( '{'.$job->{job_id}.'} Failed to enter lifecycle process: ' . $@ );
+            }
+            else {
+                $pqa->enqueue($job->{priority}, $job);
+            }
+        }
+        else {
+            $Granite::log->info('Not enqueueing jobId ' . $job->{job_id} . ': Already in active queue');
+        }
     }
 }
 
