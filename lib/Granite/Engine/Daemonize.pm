@@ -1,8 +1,8 @@
 package Granite::Engine::Daemonize;
-use File::Slurp qw(read_file write_file);
+use File::Slurp qw(read_file);
 use Proc::ProcessTable;
 use POSIX 'setsid';
-use Carp qw(cluck confess);
+use Carp;
 use Moose;
 use namespace::autoclean;
 
@@ -20,7 +20,8 @@ around 'new' => sub {
     my $self = $class->$orig(@_);
 
     
-    $self->logger->debug('At Granite::Engine::Daemonize') if $self->debug;
+    $self->logger->debug('At Granite::Engine::Daemonize')
+        if $self->debug;
 
     my $pid_file = $self->pid_file;
 
@@ -35,18 +36,22 @@ around 'new' => sub {
         }
     }
 
+    my $parent_pid = $$;
     my $pid = fork ();
-
     if ( !$pid ){
-        $self->poe_kernel->has_forked ;
+        $self->logger->info('Child process with pid ' . $$)
+            if $self->debug;
     } elsif ( $pid < 0 ){
         confess "fork: $!\n";
     } elsif ($pid) {
-        unless ( write_file( $pid_file, { binmode => ':raw', err_mode => 'carp'}, $pid ) ){
+        open ( PIDFILE, ">$pid_file" ) or do {
             $self->poe_kernel->stop;
-            $self->logger->logwarn( "Cannot write pid to '$pid_file'" );
-            return undef;
-        }
+            kill INT => $pid;
+            $self->logger->logdie( "Cannot write pid $pid to '$pid_file': $!" );
+        };
+        print PIDFILE $pid;
+        close PIDFILE or $self->logger->logdie( "Cannot close pid file '$pid_file': $!" );
+
         $self->logger->info('Process datached from parent with pid ' . $pid) if $self->debug;
 
         POSIX::setsid or confess "setsid: $!\n";
@@ -57,8 +62,6 @@ around 'new' => sub {
 
         exit 0;
     }
-
-    return $self;
 
 };
 

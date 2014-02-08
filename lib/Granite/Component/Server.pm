@@ -6,8 +6,12 @@ use Data::Validate::IP qw(is_ipv4 is_ipv6);
 use Scalar::Util 'looks_like_number';
 use Sys::Hostname;
 use Data::Dumper::Concise;
-use POE
-    qw( Wheel::SocketFactory Driver::SysRW Filter::Stream Wheel::ReadWrite );
+use POE qw/
+    Wheel::SocketFactory
+    Driver::SysRW
+    Filter::Stream
+    Wheel::ReadWrite
+/;
 
 use Moose::Util::TypeConstraints;
 use Moose;
@@ -19,7 +23,6 @@ use vars
         $granite_cacrt $granite_verify_client $granite_cipher
         $granite_crl $client_namespace $host_name $disable_ssl
         $unix_socket $self );
-
 
 
 =head1 DESCRIPTION
@@ -261,7 +264,7 @@ sub run {
             _default          => \&Granite::Engine::handle_default,
             _stop             => \&server_error,
         },
-        options => { trace => $debug, debug => $debug },
+        options => { trace => $Granite::trace, debug => $debug },
     ) or $log->logcroak('[ ' . $sessionId .  " ] can't POE::Session->create: $!" );
 
     if ( $self->_has_unix_socket ){ 
@@ -569,8 +572,7 @@ sub _verify_client {
     $log->info('[ ' . $_[SESSION]->ID()
             . " ]->($wheel_id) Verifying password\n");
     $input =~ s/\n$|\r//g;
-    # TODO: Add authentication module
-    if ( $input ne 'system' ){
+    if ( $input ne $Granite::cfg->{main}->{auth_token} ){
         $heap->{server}->{$wheel_id}->{wheel}->put(
             "[" . $wheel_id . "] Password authentication failure.\n"
         ) if $canwrite;

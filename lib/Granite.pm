@@ -7,7 +7,7 @@ use Log::Log4perl qw(:easy);
 use Granite::Engine;
 use Granite::Utils::ConfigLoader;
 
-use vars qw( $VERSION $cfg $debug $log );
+use vars qw( $VERSION $cfg $debug $log $trace );
 use strict 'vars';
 
 use 5.14.2;
@@ -41,8 +41,8 @@ $VERSION = 1.0;
 
 =head2 L<init()>
 
-    initializes configuration, logging,
-    exit handler, and runs the application.
+  initializes configuration, logging,
+  exit handler, and runs the application.
 
 =cut
 
@@ -57,6 +57,7 @@ sub new {
     $cfg = Granite::Utils::ConfigLoader::load_app_config($config_file);
 
     $debug = $ENV{GRANITE_FOREGROUND} ? $ENV{GRANITE_DEBUG} : $cfg->{main}->{debug};
+    $trace = $ENV{GRANITE_TRACE} || $cfg->{main}->{trace};
 
     # Load log config
     # ===============

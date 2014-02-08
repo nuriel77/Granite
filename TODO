@@ -1,0 +1,2 @@
+check http://search.cpan.org/~sungo/POE-Component-SubWrapper-0.09/lib/POE/Component/SubWrapper.pm
+check POE-Component-DebugShell

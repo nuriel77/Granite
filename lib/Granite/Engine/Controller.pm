@@ -21,27 +21,36 @@ use Data::Dumper;
 
 =head2 ATTRIBUTES
 
-  * commands
+  * client_commands
+  * engine_commands
   
 =cut
 
-has commands => (
+has client_commands => (
     is => 'ro',
     isa => 'HashRef',
-    default => \&_get_commands_hash,
+    default => \&_get_client_commands,
     lazy => 1,
 );
 
+has engine_commands => (
+    is => 'ro',
+    isa => 'HashRef',
+    default => \&_get_engine_commands,
+    lazy => 1,
+);
+
+no Moose; 
 
 =head2 METHODS
 
-=head3 B<_get_commands_hash>
+=head3 B<_get_client_commands>
 
-  Return the commands dictionary
+  Return the user space command dictionary
 
 =cut
 
-sub _get_commands_hash {
+sub _get_client_commands {
     { 
         ping            => sub {
             my ( $kernel, $heap, $wheel_id ) = @_;
@@ -51,6 +60,27 @@ sub _get_commands_hash {
                 'pong',
                 $wheel_id
             );
+        },
+        # Opens debug shell on server side
+        # TODO: 'exit' method does not exists
+        # contrary to what is claimed in the 
+        # docs of POE::Component::DebugShell
+        debugshell      => sub {
+            my ( $kernel, $heap, $wheel_id ) = @_;
+            unless ( $ENV{GRANITE_FOREGROUND} ) {
+                $kernel->post(
+                    $kernel->alias_resolve('server'),
+                    'reply_client',
+                    'Cannot open debug console when daemonized',
+                    $wheel_id
+                );
+            }
+            else {
+                $kernel->post(
+                    $kernel->alias_resolve('engine'),
+                    'debug_shell',
+                );
+            }
         },
         # Shutdown the server session
         # ===========================
@@ -70,18 +100,11 @@ sub _get_commands_hash {
         # =========================
         getnodes        => sub {
             my ( $kernel, $heap, $wheel_id ) = @_;           
-            my $node_array;
-            try { $node_array = $heap->{self}->scheduler->{nodes}->list_nodes }
-            catch { $node_array = $_ };
-
-            my @visible_nodes = ref $node_array eq 'ARRAY'
-                ? grep defined, @{$node_array}
-                : $node_array;
-
+            my $nodes = _get_scheduler_nodes($heap->{self}->scheduler);
             $kernel->post(
                 $kernel->alias_resolve('server'),
                 'reply_client',
-                \@visible_nodes,
+                $nodes,
                 $wheel_id
             );
         },
@@ -89,9 +112,7 @@ sub _get_commands_hash {
         # =========================
         getinstances    => sub {
             my ( $kernel, $heap, $wheel_id ) = @_;
-            my $instances;
-            try { $instances = $heap->{self}->cloud->get_all_instances }
-            catch { $instances = $_ };
+            my $instances = &_get_instances($heap->{self}->cloud);
             $kernel->post(
                 $kernel->alias_resolve('server'),
                 'reply_client',
@@ -103,9 +124,7 @@ sub _get_commands_hash {
         # ===========================
         gethypervisors  => sub {
             my ( $kernel, $heap, $wheel_id ) = @_;
-            my $hypervisor_list;
-            try { $hypervisor_list = $heap->{self}->cloud->get_all_hypervisors }
-            catch { $hypervisor_list = $_ };
+            my $hypervisor_list = &_get_hypervisor_list($heap->{self}->cloud);
             $kernel->post(
                 $kernel->alias_resolve('server'),
                 'reply_client',
@@ -117,19 +136,9 @@ sub _get_commands_hash {
         # =============
         bootinstance    => sub {
             my ( $kernel, $heap, $wheel_id ) = @_;
-            my $status = 'Instance boot request submitted OK';
-            try {
-                $heap->{self}->cloud->boot_instance({
-                    name => 'test01',
-                    key_name => $heap->{self}->cloud->{metadata}->{adminkey},
-                    imageRef => $heap->{self}->cloud->{metadata}->{default_image},
-                    flavorRef => $heap->{self}->cloud->{metadata}->{default_flavor_id},
-                })
-            }
-            catch {
-                $Granite::log->error('Error from Cloud API: ' . $_);
-                $status = $_;
-            };
+            my $status = &_boot_instance($heap->{self}->cloud);
+            $status = 'Instance boot request submitted OK'
+                if $status == 1;
             $kernel->post(
                 $kernel->alias_resolve('server'),
                 'reply_client',
@@ -157,7 +166,86 @@ sub _get_commands_hash {
     }
 }
 
-no Moose;
+
+=head3 B<_get_engine_commands>
+
+  Return the engine command dictionary
+
+=cut
+
+sub _get_engine_commands {
+    {
+        ping        => sub { return 'pong' }
+    }
+}
+
+=head3 B<_get_instances>
+
+  Get instnaces list from cloud
+
+=cut
+
+sub _get_instances {
+    my $cloud = shift;
+    my $instances;
+    try { $instances = $cloud->get_all_instances }
+    catch { $instances = $_ };
+    return $instances;
+}
+
+=head3 B<_get_scheduler_nodes>
+
+  Get all (visible) scheduler nodes
+
+=cut
+
+sub _get_scheduler_nodes {
+    my $scheduler = shift;
+    my $node_array;
+    try { $node_array = $scheduler->{nodes}->list_nodes }
+    catch { $node_array = $_ };
+    my @visible_nodes = ref $node_array eq 'ARRAY'
+        ? grep defined, @{$node_array}
+        : $node_array;
+    return wantarray ? @visible_nodes : \@visible_nodes;
+}
+
+
+=head3 B<_get_hypervisor_list>
+
+  Get hypervisor list from cloud
+
+=cut
+
+sub _get_hypervisor_list {
+    my $cloud = shift;
+    my $hypervisor_list;
+    try { $hypervisor_list = $cloud->get_all_hypervisors }
+    catch { $hypervisor_list = $_ };
+    return $hypervisor_list;
+}
+
+
+=head3 B<_boot_instance>
+
+  Boot an instance
+
+=cut
+
+sub _boot_instance {
+    my $cloud = shift;
+    try {    
+        $cloud->boot_instance({
+            name => 'test01',
+            key_name => $cloud->{metadata}->{adminkey},
+            imageRef => $cloud->{metadata}->{default_image},
+            flavorRef => $cloud->{metadata}->{default_flavor_id},
+        })
+    }
+    catch { return $_ }
+
+    return 1;
+}
 
 =head1 AUTHOR
 

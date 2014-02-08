@@ -7,6 +7,7 @@ use Granite::Component::Scheduler::Queue::Watcher;
 use Cwd 'getcwd';
 use POE;
 use POE::Wheel::Run;
+use POE::Component::DebugShell;
 use Data::Dumper::Concise;
 use Moose;
     with 'Granite::Engine::Logger',
@@ -103,7 +104,7 @@ sub run {
     if ( !$ENV{GRANITE_FOREGROUND} && $Granite::cfg->{main}->{daemonize} =~ /yes/i ){
         # Daemonize
         # =========
-        Granite::Engine::Daemonize->new(
+        my $daemon = Granite::Engine::Daemonize->new(
             logger   => $log,
             debug    => $debug,
             poe_kernel => $poe_kernel,
@@ -111,7 +112,8 @@ sub run {
             pid_file => $ENV{GRANITE_PID_FILE}
                 || $Granite::cfg->{main}->{pid_file}
                 || '/var/run/granite/granite.pid'
-        )
+        );
+        $poe_kernel->has_forked if $daemon;
     }
     else {
         # set logger output to 
@@ -176,13 +178,14 @@ sub _init {
             },
             client_commands => \&_controller,
             get_nodes       => \&_get_node_list,
+            debug_shell     => sub { POE::Component::DebugShell->spawn(); },
             watch_queue     => \&Granite::Component::Scheduler::Queue::Watcher::run,
             _default        => \&handle_default,
             terminate       => sub { $_[KERNEL]->post('_stop') },
-            _stop           => \&terminate,
+            _stop           => \&_terminate,
         },
         heap => { scheduler => $self->scheduler, self => $self },
-        options => { trace => $debug, debug => $debug },
+        options => { trace => $Granite::trace, debug => $debug },
     ) or $log->logcroak('[ ' . $_[SESSION]->ID() .  " ] can't POE::Session->create: $!" );
 
     $poe_kernel->run();
@@ -259,7 +262,7 @@ sub _init_modules {
     # =========
     $self->_set_cloud ( $self->modules->{cloud}->{ (keys %{$self->modules->{cloud}})[0] } )
         && delete $self->modules->{cloud};
-
+    
 }
 
 =head3 B<child_sessions>
@@ -302,7 +305,7 @@ sub _controller {
     
     # Get all known commands
     # ======================
-    my @commands = sort keys $heap->{self}->commands;
+    my @commands = sort keys $heap->{self}->client_commands;
     
     # Check if use command exists.
     # Return the list of commands to user
@@ -318,11 +321,11 @@ sub _controller {
     }
     else {
         $log->info('[ ' . $_[SESSION]->ID() . " ] Executing client ($wheel_id) command '$cmd'");
-        my $ret_val = $heap->{self}->commands->{"$cmd"}->( $kernel, $heap, $wheel_id );
+        my $ret_val = $heap->{self}->client_commands->{"$cmd"}->( $kernel, $heap, $wheel_id );
 
         # Command alias "callback"
         # ========================
-        $heap->{self}->commands->{"$ret_val"}->( $kernel, $heap, $wheel_id )
+        $heap->{self}->client_commands->{"$ret_val"}->( $kernel, $heap, $wheel_id )
             if ( $ret_val && $ret_val ~~ @commands );
     }
 

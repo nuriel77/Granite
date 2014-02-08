@@ -29,7 +29,7 @@ sub run {
                 result => \&parent_got_result,
             },
             heap => { scheduler => $scheduler->{(keys %{$scheduler})[0]} },
-            options => { trace => $debug, debug => $debug },
+            options => { trace => $Granite::trace, debug => $debug },
         ) or $log->logcroak('[ ' . $_[SESSION]->ID() .  " ] can't POE::Session->create: $!" );
     
     $log->debug( '[ ' . $_[SESSION]->ID()
@@ -85,10 +85,10 @@ sub create_child {
             next   => \&child_process_input,
         },
         heap => { scheduler => $_[HEAP]->{scheduler} },
-        options => { trace => $debug, debug => $debug },
+        options => { trace => $Granite::trace, debug => $debug },
     ) or $log->logdie('[ ' . $_[SESSION]->ID() .  " ] can't POE::Session->create: $!" );
 
-    $log->info('[ ' . $_[SESSION]->ID() . ' ] Child session started with ID: [ ' . $session->ID() . ' ]');
+    $log->debug('[ ' . $_[SESSION]->ID() . ' ] Child session started with ID: [ ' . $session->ID() . ' ]');
 
 }
 
@@ -110,10 +110,7 @@ sub parent_got_result {
 
     my $sess = $_[KERNEL]->alias_resolve('engine');
     $_[KERNEL]->post( $sess , 'process_res_q' );
-     #warn "$in_res jobs in reservation queue\n";
-         #$output .= '' . ( join ":", ( $_->{job_id}, $_->{priority}, $_->{num_cpus}, $_->{num_nodes}) ) . ';'
-         #   if $_->{partition} eq $reservation_queue;
-
+ 
 }
 
 sub child_process_input {
@@ -122,8 +119,9 @@ sub child_process_input {
     my $queue_data = $scheduler->get_queue();
 
     if ( ref $queue_data eq 'ARRAY' && @{$queue_data} > 0 ) {
-        $log->info('[ ' . $_[SESSION]->ID . ' ] Have ' . scalar @{$queue_data}
+        $log->debug('[ ' . $_[SESSION]->ID . ' ] Have ' . scalar @{$queue_data}
                    . ' jobs(s) from all queues. Posting to parent. Child terminating.');
+
         #$log->debug("[ " . $_[SESSION]->ID . " ] Have queue data: " . Dumper $queue_data )
         #    if $debug;
 
@@ -132,6 +130,7 @@ sub child_process_input {
     else {
         $log->info("[ " . $_[SESSION]->ID . " ] Queue empty.");
     }
+
 }
 
 1;
