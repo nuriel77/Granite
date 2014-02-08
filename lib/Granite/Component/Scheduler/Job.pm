@@ -41,12 +41,10 @@ has job => (
 
 sub process {
     $self = shift;
-
     $Granite::log->debug('{' . $self->job->{job_id} . '} At process');
     $_[HEAP]->{worker} =  POE::Wheel::Run->new(
         Program     => \&_in_session,
     ) or die "$0: can't POE::Wheel::Run->new";
-
 }
 
 =head4 B<_in_session>

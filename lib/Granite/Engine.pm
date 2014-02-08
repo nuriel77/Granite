@@ -168,6 +168,7 @@ sub _init {
 
                 # Queue watcher
                 # =============
+                $kernel->yield("init_granite_queue", $log, $debug );
                 $kernel->yield("watch_queue", $log, $debug, $self->modules->{scheduler} );
 
                 # Server
@@ -178,15 +179,11 @@ sub _init {
 
             },
             _child          => \&child_sessions,
-            init_server     => sub {
-                Granite::Component::Server->new()->run( $_[SESSION]->ID() )
-            },
-            process_res_q   => sub {
-                $self->scheduler->{queue}->process_queue( $_[HEAP], $_[SESSION]->ID() )
-            },
+            init_server     => sub { Granite::Component::Server->new()->run( $_[SESSION]->ID() ) },
             client_commands => \&_controller,
             get_nodes       => \&_get_node_list,
             watch_queue     => \&Granite::Component::Scheduler::Queue::Watcher::run,
+            init_granite_queue => \&Granite::Component::Scheduler::Queue::init,
             _default        => \&handle_default,
             terminate       => sub { $_[KERNEL]->post('_stop') },
             _stop           => \&_terminate,
@@ -207,7 +204,7 @@ sub _init {
 
 sub _terminate {
     my ($heap, $kernel, $sender, $session ) = @_[ HEAP, KERNEL, SENDER, SESSION ];
-    $log->info('[ ' . $session->ID() . '] Terminating...(caller: ' . $sender . ')');
+    $log->info('[ ' . $session->ID() . ' ] Terminating...(caller: ' . $sender . ')');
     delete $heap->{server};
     unlink $Granite::cfg->{server}->{unix_socket}
         if -e $Granite::cfg->{server}->{unix_socket};

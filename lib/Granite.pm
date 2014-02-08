@@ -12,7 +12,7 @@ use strict 'vars';
 
 use 5.14.2;
 
-$VERSION = 1.0;
+$VERSION = '1.001';
 
 
 =head1 NAME
