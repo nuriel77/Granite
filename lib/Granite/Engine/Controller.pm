@@ -44,7 +44,7 @@ has engine_commands => (
 
 =head2 METHODS
 
-=head3 B<_get_client_commands>
+=head4 B<_get_client_commands>
 
   Return the user space command dictionary
 
@@ -131,7 +131,7 @@ sub _get_client_commands {
 }
 
 
-=head3 B<_get_engine_commands>
+=head4 B<_get_engine_commands>
 
   Return the engine command dictionary
 
@@ -224,7 +224,7 @@ sub _get_engine_commands {
     }
 }
 
-=head3 B<_get_instances>
+=head4 B<_get_instances>
 
   Get instnaces list from cloud
 
@@ -237,7 +237,7 @@ sub _get_instances {
     return $@ ? $@ : $instances;
 }
 
-=head3 B<_get_scheduler_res_q>
+=head4 B<_get_scheduler_res_q>
 
   Get scheduler's reservation queue
 
@@ -252,7 +252,7 @@ sub _get_scheduler_res_q {
 }
 
 
-=head3 B<_get_scheduler_nodes>
+=head4 B<_get_scheduler_nodes>
 
   Get all (visible) scheduler nodes
 
@@ -270,7 +270,7 @@ sub _get_scheduler_nodes {
 }
 
 
-=head3 B<_get_hypervisor_list>
+=head4 B<_get_hypervisor_list>
 
   Get hypervisor list from cloud
 
@@ -284,7 +284,7 @@ sub _get_hypervisor_list {
 }
 
 
-=head3 B<_boot_instance>
+=head4 B<_boot_instance>
 
   Boot an instance
 

@@ -1,14 +1,15 @@
 package Granite::Component::Scheduler::Queue;
 use POE;
 use POE::XS::Queue::Array;
+use Granite::Component::Scheduler::Job;
 use vars qw($log $debug $scheduler $pqa);
 use Moose;
 
 our $child_max = 1;
 
-before 'new' => sub {
-    $pqa = POE::XS::Queue::Array->new();
-};
+#before 'new' => sub {
+#    $pqa = POE::XS::Queue::Array->new();
+#};
 
 
 sub process_queue {
@@ -21,22 +22,26 @@ sub process_queue {
                 . '::process_queue from caller ID [ ' . $scheduler->{queue}->{by} . ' ]' )
         if $debug;
 
-    my @_queue = $pqa->peek_items( sub { 1; } );
-    _enqueue(\@_queue, $scheduler->{queue}->{data});
+    #my @_queue = $pqa->peek_items( sub { 1; } );
+    #_enqueue(\@_queue, $scheduler->{queue}->{data});
 
-    $log->debug('Have ' . $pqa->get_item_count() . ' job(s) in active queue');
+#    $log->debug('Have ' . $pqa->get_item_count() . ' job(s) in active queue');
 
-    #for my $job ( @{$scheduler->{queue}->{data}} ){
-    #    POE::Session->create
-    #    (
-    #       inline_states =>
-    #        {
-    #            _start => sub { $_[KERNEL]->yield('next') },
-    #            next => sub { warn "At next from " . $_[SESSION]->ID() },
-    #            _stop => sub { warn "Done : " . $_[SESSION]->ID() }
-    #        },
-    #    ) or $log->logcluck('[ ' . $_[SESSION]->ID() .  " ] can't POE::Session->create: $!" );
-    #}
+    for my $job ( @{$scheduler->{queue}->{data}} ){
+        #POE::Session->create
+        #(
+        #   inline_states =>
+        #    {
+        #        _start => sub { $_[KERNEL]->yield('next') },
+        #        next => sub { warn "At next from " . $_[SESSION]->ID() },
+        #        _stop => sub { warn "Done : " . $_[SESSION]->ID() }
+        #    },
+        #) or $log->logcluck('[ ' . $_[SESSION]->ID() .  " ] can't POE::Session->create: $!" );
+        my $job_api = Granite::Component::Scheduler::Job->new( job => $job );
+        eval { $job_api->process };
+        die $@ if $@;
+        
+    }
 }
 
 sub _enqueue {

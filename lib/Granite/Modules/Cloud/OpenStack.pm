@@ -18,7 +18,7 @@ with 'Granite::Modules::Cloud';
 
 =head2 METHOD MODIFIERS
 
-=head3 B<around 'new'>
+=head4 B<around 'new'>
 
     Override constructor, load OpenStack subclass
 
@@ -47,7 +47,7 @@ around 'new' => sub {
 
 =head2 METHODS
 
-=head3 B<get_all_instances>
+=head4 B<get_all_instances>
 
   Same as nova list
 
@@ -56,7 +56,7 @@ around 'new' => sub {
 sub get_all_instances { shift->compute->get_servers(detail => 1) }
 
 
-=head3 B<get_all_hypervisors>
+=head4 B<get_all_hypervisors>
 
   Get hypervisors and their details
 
@@ -65,7 +65,7 @@ sub get_all_instances { shift->compute->get_servers(detail => 1) }
 sub get_all_hypervisors { shift->compute->get_hypervisors(detail => 1) }
 
 
-=head3 B<boot_instance>
+=head4 B<boot_instance>
 
   Boot an instance
 

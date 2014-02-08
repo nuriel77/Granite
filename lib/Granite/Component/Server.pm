@@ -47,7 +47,7 @@ use vars
 
   via Moose::Util::TypeConstraints
 
-=head3 subtype 'Port'
+=head4 subtype 'Port'
 
   B<Port> can be Int range 1025..65535
 
@@ -58,7 +58,7 @@ subtype 'Port',
     where { $_ > 1024 && $_ <= 65535 };
 
 
-=head3 subtype 'BindAddress'
+=head4 subtype 'BindAddress'
 
   B<BindAddress> can be IPv4 or IPv6
 
@@ -141,7 +141,7 @@ has mysession => (
 
 =head2 METHODS
 
-=head3 B<BUILD>
+=head4 B<BUILD>
 
   Assign class parameters before 'run'
 
@@ -179,7 +179,7 @@ sub BUILD {
 };
 
 
-=head3 B<run( $parent_sessionId )>
+=head4 B<run( $parent_sessionId )>
 
   Method 'run' will start the server session
 
@@ -284,7 +284,7 @@ sub run {
 
 
 
-=head3 B<server_error>
+=head4 B<server_error>
 
   Handler for server's parent session error event
 
@@ -300,7 +300,7 @@ sub server_error {
 }
 
 
-=head3 B<server_session_error>
+=head4 B<server_session_error>
 
   Handler for SocketFactory FailureEvent
 
@@ -317,7 +317,7 @@ sub server_session_error {
 }
 
 
-=head3 B<_terminate_server>
+=head4 B<_terminate_server>
 
   Shut down the server
 
@@ -335,7 +335,7 @@ sub _terminate_server {
 }
 
 
-=head3 B<_client_error>
+=head4 B<_client_error>
 
   Handler for client errors
 
@@ -357,7 +357,7 @@ sub _client_error {
 }
 
 
-=head3 B<_close_delayed>
+=head4 B<_close_delayed>
 
   Disconnect a client
   call to this handler is typically 
@@ -377,7 +377,7 @@ sub _close_delayed {
 }
 
 
-=head3 B<_client_disconnect>
+=head4 B<_client_disconnect>
 
   Handler for client disconnect
   Will delay termination in
@@ -400,7 +400,7 @@ sub _client_disconnect {
 }
 
 
-=head3 B<_client_input>
+=head4 B<_client_input>
 
   client input handler for all 
   client input data.
@@ -450,7 +450,7 @@ sub _client_input {
 }
 
 
-=head3 B<_client_reply>
+=head4 B<_client_reply>
 
   Reply to client
 
@@ -481,7 +481,7 @@ sub _client_reply {
     }
 }
 
-=head3 B<_client_accept>
+=head4 B<_client_accept>
 
   New socket connection established
 
@@ -540,7 +540,7 @@ sub _client_accept {
 }
 
 
-=head3 B<_verify_client>
+=head4 B<_verify_client>
 
   Verify the client when connected
 
@@ -609,7 +609,7 @@ sub _verify_client {
 }
 
 
-=head3 B<_sanitize_input>
+=head4 B<_sanitize_input>
 
   Do not accept input with invalid characters
 
@@ -636,7 +636,7 @@ sub _sanitize_input {
     return $input;
 }
 
-=head3 B<_canwrite>
+=head4 B<_canwrite>
 
   Check if can write to client's socket.
 
@@ -649,7 +649,7 @@ sub _canwrite {
 }
 
 
-=head3 B<_get_remote_address>
+=head4 B<_get_remote_address>
 
   Get the IP:Port of the client
 

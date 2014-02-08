@@ -99,7 +99,7 @@ has client_privmode => (
 
 =head2 METHODS
 
-=head3 B<run>
+=head4 B<run>
 
   Runs the engine
 
@@ -133,7 +133,7 @@ sub run {
     $self->_init;
 }
 
-=head3 B<_init>
+=head4 B<_init>
 
   Engine initialize all components
   and modules then start main session
@@ -199,7 +199,7 @@ sub _init {
 
 }
 
-=head3 B<_terminate>
+=head4 B<_terminate>
 
   If termination signal arrives
 
@@ -215,7 +215,7 @@ sub _terminate {
     Granite->QUIT;
 }
 
-=head3 B<_init_modules>
+=head4 B<_init_modules>
 
   Initialize pluggable modules
   Configuration example:
@@ -272,7 +272,7 @@ sub _init_modules {
         
 }
 
-=head3 B<child_sessions>
+=head4 B<child_sessions>
 
   Used to maintain status of engine's created sessions
 
@@ -297,7 +297,7 @@ sub child_sessions {
     }
 }
 
-=head3 B<_controller>
+=head4 B<_controller>
 
   Initialize Engine's controller
 
@@ -365,7 +365,7 @@ sub _controller {
 }
 
 
-=head3 B<handle_default>
+=head4 B<handle_default>
 
   Default method to capture unrecognized POE requests
 
