@@ -1,6 +1,5 @@
 package Granite::Engine::Controller;
 use Moose::Role;
-use Try::Tiny;
 use Data::Dumper;
 
 use vars qw/$poe_api/;
@@ -62,6 +61,18 @@ sub _get_client_commands {
                 $wheel_id
             );
         },
+        # Get scheduler's reservation queue
+        # =================================
+        getresqueue     => sub {
+            my ( $kernel, $heap, $wheel_id ) = @_;
+            my $output = _get_scheduler_res_q($heap->{self}->scheduler);
+            $kernel->post(
+                $kernel->alias_resolve('server'),
+                'reply_client',
+                $output,
+                $wheel_id
+            );
+        },
         # Get scheduler's node list
         # =========================
         getnodes        => sub {
@@ -98,20 +109,6 @@ sub _get_client_commands {
                 $wheel_id,
             );
         },
-        # Boot instance 
-        # =============
-        bootinstance    => sub {
-            my ( $kernel, $heap, $wheel_id ) = @_;
-            my $status = &_boot_instance($heap->{self}->cloud);
-            $status = 'Instance boot request submitted OK'
-                if $status == 1;
-            $kernel->post(
-                $kernel->alias_resolve('server'),
-                'reply_client',
-                $status,
-                $wheel_id,
-            );
-        },
         # Client disconnect
         # =================
         exit            => sub {
@@ -129,6 +126,7 @@ sub _get_client_commands {
         # Alias callback
         # ==============
         quit => sub { return 'exit' },
+        q    => sub { return 'exit' },
     }
 }
 
@@ -142,6 +140,20 @@ sub _get_client_commands {
 sub _get_engine_commands {
     {
         ping => sub { return 'pong' },
+        # Boot instance 
+        # =============
+        bootinstance    => sub {
+            my ( $kernel, $heap, $wheel_id ) = @_;
+            my $status = &_boot_instance($heap->{self}->cloud);
+            $status = 'Instance boot request submitted OK'
+                if $status == 1;
+            $kernel->post(
+                $kernel->alias_resolve('server'),
+                'reply_client',
+                $status,
+                $wheel_id,
+            );
+        },
         show_session_aliases => sub {
             my ( $kernel, $heap, $wheel_id, $sessionId ) = @_;
  	   		$poe_api = $heap->{self}->modules->{debugShell}
@@ -221,10 +233,24 @@ sub _get_engine_commands {
 sub _get_instances {
     my $cloud = shift;
     my $instances;
-    try { $instances = $cloud->get_all_instances }
-    catch { $instances = $_ };
-    return $instances;
+    eval { $instances = $cloud->get_all_instances };
+    return $@ ? $@ : $instances;
 }
+
+=head3 B<_get_scheduler_res_q>
+
+  Get scheduler's reservation queue
+
+=cut
+
+sub _get_scheduler_res_q {
+    my $scheduler = shift;
+    my $queue;
+    my $sched_api = $scheduler->{(keys %{$scheduler})[0]};
+    eval { $queue = $sched_api->get_queue };
+    return $@ ? $@ : $queue;
+}
+
 
 =head3 B<_get_scheduler_nodes>
 
@@ -235,8 +261,8 @@ sub _get_instances {
 sub _get_scheduler_nodes {
     my $scheduler = shift;
     my $node_array;
-    try { $node_array = $scheduler->{nodes}->list_nodes }
-    catch { $node_array = $_ };
+    eval { $node_array = $scheduler->{nodes}->list_nodes };
+    return $@ if $@;
     my @visible_nodes = ref $node_array eq 'ARRAY'
         ? grep defined, @{$node_array}
         : $node_array;
@@ -253,9 +279,8 @@ sub _get_scheduler_nodes {
 sub _get_hypervisor_list {
     my $cloud = shift;
     my $hypervisor_list;
-    try { $hypervisor_list = $cloud->get_all_hypervisors }
-    catch { $hypervisor_list = $_ };
-    return $hypervisor_list;
+    eval { $hypervisor_list = $cloud->get_all_hypervisors };
+    return $@ ? $@ : $hypervisor_list;
 }
 
 
@@ -267,17 +292,16 @@ sub _get_hypervisor_list {
 
 sub _boot_instance {
     my $cloud = shift;
-    try {    
+    $Granite::log->debug('At _boot_instance');
+    eval {
         $cloud->boot_instance({
             name => 'test01',
             key_name => $cloud->{metadata}->{adminkey},
             imageRef => $cloud->{metadata}->{default_image},
             flavorRef => $cloud->{metadata}->{default_flavor_id},
         })
-    }
-    catch { return $_ }
-
-    return 1;
+    };
+    return $@ ? $@ : 1;
 }
 
 no Moose; 

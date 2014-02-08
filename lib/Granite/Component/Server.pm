@@ -441,9 +441,10 @@ sub _client_input {
         # For other input we send to the controller
         # =========================================
         else {
-	        $log->debug('[ ' . $_[SESSION]->ID() . " ] Sanitized input and left with: '$input'" );
+	        $log->debug('[ ' . $_[SESSION]->ID() . " ] Sanitized input and left with: '$input'" );            
 	        my $engine_session = $_[KERNEL]->alias_resolve('engine');
-	        $_[KERNEL]->post( $engine_session , 'client_commands', "$input", $wheel_id );
+	        $_[KERNEL]->post( $engine_session , 'client_commands', "$input", $wheel_id )
+                unless $input eq '';
         }
     }
 }
@@ -463,7 +464,15 @@ sub _client_reply {
 
     my $canwrite = _canwrite($heap, $wheel_id);
     my $output = '[' . $wheel_id . '] ';
+
     $output .= ref $reply ? Dumper $reply : $reply;
+    if ( ref $reply eq 'ARRAY' ){
+        $output .= "\nTotal: " . ( scalar @{$reply} );
+    }
+    elsif ( ref $reply eq 'HASH' ){
+        $output .= "\nTotal: " . ( scalar keys %{$reply} );
+    }
+
     $heap->{server}->{$wheel_id}->{wheel}->put( $output . "\n" )
         if $canwrite;
 

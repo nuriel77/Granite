@@ -15,7 +15,7 @@ sub process_queue {
     my ( $self, $heap, $sessionId ) = @_;
     ( $log, $debug ) = ( $Granite::log, $Granite::debug );
 
-    my $scheduler         = $heap->{scheduler}->{(keys %{$heap->{scheduler}})[0]};
+    my $scheduler = $heap->{scheduler}->{(keys %{$heap->{scheduler}})[0]};
 
     $log->debug('[ ' . $sessionId . ' ] Entered ' . __PACKAGE__
                 . '::process_queue from caller ID [ ' . $scheduler->{queue}->{by} . ' ]' )
