@@ -19,25 +19,25 @@ use Moose::Role;
 =item * B<cache>
 =cut
 
-has cache       => ( is => 'rw', isa => 'Object', predicate => '_has_cache' );
+has cache      => ( is => 'rw', isa => 'Object', predicate => '_has_cache' );
 
 
 =item * B<name>
 =cut
 
-has name       => ( is => 'ro', isa => 'Str', required => 1 );
+has name       => ( is => 'rw', isa => 'Str', required => 1 );
 
 
 =item * B<metadata>
 =cut
 
-has metadata   => ( is => 'ro', isa => 'HashRef', );
+has metadata   => ( is => 'rw', isa => 'HashRef', );
 
 
 =item * B<callback>
 =cut
 
-has callback   => ( is => 'ro', isa => 'Any', );
+has callback   => ( is => 'rw', isa => 'Any', );
 
 
 =back

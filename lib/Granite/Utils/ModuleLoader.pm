@@ -22,6 +22,7 @@ sub load_module {
     my $package = shift;
     eval { load $package };
     return $@ ? $@ : undef;
+
 }
 
 no Moose;

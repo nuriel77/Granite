@@ -242,7 +242,9 @@ sub _init_modules {
 
     MODULES:
     for my $module ( keys %{$Granite::cfg->{modules}} ){
+        # Skip if module not enabled
         next MODULES unless $Granite::cfg->{modules}->{$module}->{enabled};
+        # Build package name
         my $package = 'Granite::Modules::' . ucfirst($module)
                     . '::' . $Granite::cfg->{modules}->{$module}->{name};
         $log->debug("Attempting to load modules:'" . $package . "'") if $debug;
@@ -250,12 +252,12 @@ sub _init_modules {
             $log->logcroak("Failed to load module '" . $package . "': $error" );
         }
         else {
-            $self->modules->{$module}->{$package} =
-                $package->new(
-                    name => $package,
+            my $instance = $package->new(
+                    name     => $package,
                     metadata => $Granite::cfg->{modules}->{$module}->{metadata},
                     callback => $Granite::cfg->{modules}->{$module}->{callback}
                 );
+            $self->modules->{$module}->{$package} = $instance;
             $log->debug("Loaded module '" . $package . "'") if $debug;
         }
     }    
@@ -399,7 +401,7 @@ sub handle_default {
 
 
 
-#__PACKAGE__->meta->make_immutable(inline_constructor => 0);
+__PACKAGE__->meta->make_immutable(inline_constructor => 0);
 
 =head1 AUTHOR
 
