@@ -3,22 +3,22 @@ use Moose::Role;
 
 =head1 DESCRIPTION
 
-This package provides an interface for Cloud modules.
+  This package provides an interface for Cloud modules.
 
-The default module is currently OpenStack
+  The default module is currently OpenStack
 
 =head1 SYNOPSIS
 
-use Moose;
-with 'Granite::Modules::Cloud'
+  use Moose;
+  with 'Granite::Modules::Cloud'
 
 =head1 ATTRIBUTES
 
-B<cloud>
+  B<cloud>
 
-B<compute>
+  B<compute>
 
-B<metadata>
+  B<metadata>
 
 =cut
 
@@ -28,8 +28,8 @@ has metadata    => ( is => 'rw', isa => 'HashRef' );
 
 =head1 REQUIRES
 
-B<get_all_instances>
-B<get_all_hypervisors>
+  B<get_all_instances>
+  B<get_all_hypervisors>
 
 =cut
 

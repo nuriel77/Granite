@@ -1,6 +1,5 @@
 package Granite::Modules::Cloud::OpenStack::Compute;
 use Moose;
-use Data::Dumper;
 use Carp;
 use HTTP::Request;
 use JSON qw(from_json to_json);

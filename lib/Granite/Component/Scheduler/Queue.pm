@@ -15,34 +15,46 @@ before 'new' => sub {
     elsif ( ! -w $cache_dir ){
         $Granite::log->logcroak("No write permissions on cache directory '$cache_dir'")
     }
+
     $pqa = POE::XS::Queue::Array->new();
+
+
 };
-
-sub _compare_jobs { "\L$_[0]" cmp "\L$_[1]" }
-
 
 sub init {
     my ( $kernel, $heap, $log, $debug ) = @_[KERNEL, HEAP, ARG0,ARG1 ];
+
+    my $cache_api;
+    my $engine_heap = $kernel->alias_resolve('engine')->get_heap();
+    if ( $engine_heap->{self}->_has_cache_obj ){
+        my $cache_obj = $engine_heap->{self}->{modules}->{cache};
+        $cache_api = $cache_obj->{(keys %{$cache_obj})[0]};
+    }
+
     $log->debug('[ ' . $_[SESSION]->ID . ' ] Initializing Granite queue');
+
     POE::Session::YieldCC->create(
         inline_states => {
             _start => sub {
                 $_[KERNEL]->alias_set('QueueParent');
                 $log->debug('[ ' . $_[SESSION]->ID . ' ] At POE::Session::YieldCC');
-                $_[KERNEL]->yield('event_listener');
+                $_[KERNEL]->yield('event_listener', $cache_api);
             },
             event_listener  => \&_wait_for_event,
             process_queue   => \&_process_queue,
-        }
+        },
+        heap => { cache => $cache_api }
     )
 }
 
 sub _wait_for_event {
+    my $cache = $_[ARG0];
+
     $Granite::log->debug('[ ' . $_[SESSION]->ID . ' ] Listening for new events');
     my ( $ok, $args ) = $_[SESSION]->wait('process_new_queue_data');
     if ( $ok ){
         $Granite::log->info('[ ' . $_[SESSION]->ID . " ] 'process_new_queue_data' event triggered");
-        $_[KERNEL]->post($_[SESSION], 'process_queue', $args);
+        $_[KERNEL]->post($_[SESSION], 'process_queue', $args, $cache );
     }
     else {
         $Granite::log->error('[ ' . $_[SESSION]->ID
@@ -53,24 +65,48 @@ sub _wait_for_event {
 }
 
 sub _process_queue {
-    my ( $heap, $kernel, $args ) = @_[ HEAP, KERNEL, ARG0 ];
+    my ( $heap, $kernel, $args, $cache ) = @_[ HEAP, KERNEL, ARG0, ARG1 ];
     ( $log, $debug ) = ( $Granite::log, $Granite::debug );
 
     $log->debug('[ ' . $_[SESSION]->ID . ' ] At process_queue' )
         if $debug;
-
     # Get all items in active queue
     # compare to items from the scheduler's
     # reservation queue and skip if already enqueued
     my @_queue = $pqa->peek_items( sub { 1; } );
-    _enqueue(\@_queue, $args);
+
+    # If pqa is empty, we search the cache backend
+    # to see if any items are registered there
+    # and load them into pqa active queue.
+    # Items should be removed from the backend
+    # when items are in state complete and
+    # being dequeued from pqa.
+    if ( !@_queue && defined $cache ){
+        $Granite::log->debug('Reloading active queue from cache backend');
+        _populate_pqa($cache);
+        @_queue = $pqa->peek_items( sub { 1; } );
+
+    }
+
+    _enqueue(\@_queue, $args, $cache );
     $log->debug('Have ' . $pqa->get_item_count() . ' job(s) in active queue');
     $_[KERNEL]->delay('event_listener' => 0.3);
 
 }
 
+sub _populate_pqa {
+    my $cache = shift;
+    my @keys = $cache->get_keys('job_*');
+    for ( @keys ){
+        $Granite::log->debug('Cache backend has job key ' . $_ );
+        my $hash = $cache->get($_);
+        my $job = JSON::XS->new->allow_blessed->decode( $hash );
+        $pqa->enqueue($job->{priority}, $job);
+    }
+}
+
 sub _enqueue {
-    my ( $queue, $data ) = @_;
+    my ( $queue, $data, $cache ) = @_;
     for my $job ( @{$data} ) {
         # Check if this job is already in the active queue
         unless ( grep { $_->[2]->{job_id} == $job->{job_id} } @{$queue} ){
@@ -81,6 +117,13 @@ sub _enqueue {
             }
             else {
                 $pqa->enqueue($job->{priority}, $job);
+                if ( $cache ){
+                    my $enc = eval { JSON::XS->new->allow_blessed->encode( $job ) };
+                    $cache->set( 'job_'.$job->{job_id} => $enc )
+                        unless $@;
+                    $Granite::log->error('{'.$job->{job_id}.'} Failed to write to cache backend: ' . $@ )
+                        if $@;
+                }
             }
         }
         else {
@@ -92,3 +135,4 @@ sub _enqueue {
 __PACKAGE__->meta->make_immutable(inline_constructor => 0);
 
 1;
+

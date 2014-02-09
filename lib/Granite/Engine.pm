@@ -1,4 +1,5 @@
 package Granite::Engine;
+use Moose;
 use Granite::Engine::Daemonize;
 use Granite::Component::Server;
 use Granite::Component::Scheduler::Queue;
@@ -7,11 +8,10 @@ use Granite::Component::Scheduler::Queue::Watcher;
 use Cwd 'getcwd';
 use POE;
 use POE::Wheel::Run;
-use Data::Dumper::Concise;
-use Moose;
-    with 'Granite::Engine::Logger',
-         'Granite::Engine::Controller',
-         'Granite::Utils::ModuleLoader';
+use Data::Dumper;
+with 'Granite::Engine::Logger',
+     'Granite::Engine::Controller',
+     'Granite::Utils::ModuleLoader';
 
 use namespace::autoclean;
 use vars qw($log $debug $engine_session);
@@ -64,6 +64,18 @@ has cloud      => (
     isa => 'Object',
     writer => '_set_cloud',
     predicate => '_has_cloud',
+    lazy => 1,
+    default => sub {{}},
+);
+
+=item * L<cache> 
+=cut
+
+has cache      => (
+    is => 'ro',
+    isa => 'HashRef',
+    writer => '_set_cache_obj',
+    predicate => '_has_cache_obj',
     lazy => 1,
     default => sub {{}},
 );
@@ -228,10 +240,12 @@ sub _terminate {
 sub _init_modules {
     my $self = shift;
 
-
+    MODULES:
     for my $module ( keys %{$Granite::cfg->{modules}} ){
+        next MODULES unless $Granite::cfg->{modules}->{$module}->{enabled};
         my $package = 'Granite::Modules::' . ucfirst($module)
                     . '::' . $Granite::cfg->{modules}->{$module}->{name};
+        $log->debug("Attempting to load modules:'" . $package . "'") if $debug;
         if ( my $error = load_module( $package ) ){
             $log->logcroak("Failed to load module '" . $package . "': $error" );
         }
@@ -239,11 +253,17 @@ sub _init_modules {
             $self->modules->{$module}->{$package} =
                 $package->new(
                     name => $package,
-                    metadata => $Granite::cfg->{modules}->{$module}->{metadata}
+                    metadata => $Granite::cfg->{modules}->{$module}->{metadata},
+                    callback => $Granite::cfg->{modules}->{$module}->{callback}
                 );
             $log->debug("Loaded module '" . $package . "'") if $debug;
         }
     }    
+
+    # Set cache
+    # =========
+    $self->_set_cache_obj( $self->modules->{cache} )
+        if $self->modules->{cache};
 
     # Set scheduler
     # =============
@@ -267,6 +287,7 @@ sub _init_modules {
     $self->_set_cloud ( $self->modules->{cloud}->{ (keys %{$self->modules->{cloud}})[0] } )
         && delete $self->modules->{cloud};
         
+
 }
 
 =head4 B<child_sessions>
@@ -378,7 +399,7 @@ sub handle_default {
 
 
 
-__PACKAGE__->meta->make_immutable(inline_constructor => 0);
+#__PACKAGE__->meta->make_immutable(inline_constructor => 0);
 
 =head1 AUTHOR
 
