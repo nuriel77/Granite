@@ -8,17 +8,7 @@ use Data::Dumper;
 use vars qw($log $debug $scheduler $pqa %job_queue $kernel);
 
 before 'new' => sub {
-    my $cache_dir = $Granite::cfg->{main}->{cache_dir};
-    if ( ! $cache_dir ){
-        $Granite::log->logcroak('Cannot find cache_dir in configuration file');
-    }
-    elsif ( ! -w $cache_dir ){
-        $Granite::log->logcroak("No write permissions on cache directory '$cache_dir'")
-    }
-
     $pqa = POE::XS::Queue::Array->new();
-
-
 };
 
 sub init {
@@ -47,7 +37,6 @@ sub init {
             },
             event_listener  => \&_wait_for_event,
             process_queue   => \&_process_queue,
-            _stop => sub { POE::Kernel->stop }
         },
         heap => { cache => $cache_api }
     )
@@ -57,9 +46,10 @@ sub _killme {
     $Granite::log->warn('Termination signal detected. Shutting down gracefully...');
     my $qparent_session = $kernel->alias_resolve('QueueParent');
     if ( $qparent_session ){
-        $kernel->post( $qparent_session , 'process_new_queue_data', ['shutdown'] )
+        $kernel->post( $qparent_session , 'process_new_queue_data', ['shutdown'] );
     }
     else {
+        $kernel->yield('_stop');
         POE::Kernel->stop;
     }
 }
@@ -73,10 +63,12 @@ sub _wait_for_event {
         $Granite::log->info('[ ' . $_[SESSION]->ID . " ] 'process_new_queue_data' event triggered");
         if ( $args->[0] eq 'shutdown' ){
             $Granite::log->info('[ ' . $_[SESSION]->ID . " ] 'shutdown' event triggered");
-            $_[KERNEL]->post($_[SESSION], '_stop');
-            return;
+            my $engine = $kernel->alias_resolve('engine');
+            $_[KERNEL]->post($engine, '_stop');
         }
-        $_[KERNEL]->post($_[SESSION], 'process_queue', $args, $cache );
+        else {
+            $_[KERNEL]->post($_[SESSION], 'process_queue', $args, $cache );
+        }
     }
     else {
         $Granite::log->error('[ ' . $_[SESSION]->ID
