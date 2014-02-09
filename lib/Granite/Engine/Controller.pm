@@ -1,6 +1,8 @@
 package Granite::Engine::Controller;
 use Moose::Role;
-use Data::Dumper;
+use Scalar::Util 'looks_like_number';
+
+use constant _DEBUGSHELL_MISSING => 'Error: DebugShell module not loaded';
 
 use vars qw/$poe_api/;
 
@@ -154,12 +156,14 @@ sub _get_engine_commands {
                 $wheel_id,
             );
         },
+        # Show session aliases
+        # ====================
         show_session_aliases => sub {
             my ( $kernel, $heap, $wheel_id, $sessionId ) = @_;
- 	   		$poe_api = $heap->{self}->modules->{debugShell}
-                            ->{(keys %{$heap->{self}->modules->{debugShell}})[0]}->new
-                unless $poe_api;
-		    my $output = $poe_api->show_sessions_aliases([$sessionId]);
+            $poe_api = _get_poe_api($heap) unless $poe_api;
+		    my $output = $poe_api
+                ? $poe_api->show_sessions_aliases([$sessionId])
+                : _DEBUGSHELL_MISSING;
 		    $kernel->post(
         		$kernel->alias_resolve('server'),
                 'reply_client',
@@ -167,12 +171,14 @@ sub _get_engine_commands {
                 $wheel_id,
             );
         },
+        # Show session stats
+        # ==================
         show_session_stats => sub {
             my ( $kernel, $heap, $wheel_id, $sessionId ) = @_;
- 	   		$poe_api = $heap->{self}->modules->{debugShell}
-                            ->{(keys %{$heap->{self}->modules->{debugShell}})[0]}->new
-                unless $poe_api;
-		    my $output = $poe_api->show_sessions_stats([$sessionId]);
+            $poe_api = _get_poe_api($heap) unless $poe_api;
+		    my $output = $poe_api
+                ? $poe_api->show_sessions_stats([$sessionId])
+                : _DEBUGSHELL_MISSING;
 		    $kernel->post(
         		$kernel->alias_resolve('server'),
                 'reply_client',
@@ -180,12 +186,14 @@ sub _get_engine_commands {
                 $wheel_id,
             );
         },
+        # Show session queue
+        # ==================
         show_sessions_queue => sub {
         	my ( $kernel, $heap, $wheel_id ) = @_;
- 	   		$poe_api = $heap->{self}->modules->{debugShell}
-                            ->{(keys %{$heap->{self}->modules->{debugShell}})[0]}->new
-                unless $poe_api;
-		    my $output = $poe_api->show_sessions_queue;
+            $poe_api = _get_poe_api($heap) unless $poe_api;
+		    my $output = $poe_api
+                ? $poe_api->show_sessions_queue
+                : _DEBUGSHELL_MISSING;
 		    $kernel->post(
         		$kernel->alias_resolve('server'),
                 'reply_client',
@@ -193,12 +201,15 @@ sub _get_engine_commands {
                 $wheel_id,
             );
         },
+
+        # Show all sessions
+        # =================
         show_sessions   => sub {
         	my ( $kernel, $heap, $wheel_id ) = @_;
- 	   		$poe_api = $heap->{self}->modules->{debugShell}
-                            ->{(keys %{$heap->{self}->modules->{debugShell}})[0]}->new
-                unless $poe_api;
-		    my $output = $poe_api->show_sessions;
+            $poe_api = _get_poe_api($heap) unless $poe_api;            
+            my $output = $poe_api
+                ? $poe_api->show_sessions
+                : _DEBUGSHELL_MISSING;
 		    $kernel->post(
         		$kernel->alias_resolve('server'),
                 'reply_client',
@@ -206,10 +217,190 @@ sub _get_engine_commands {
                 $wheel_id,
             );
 	    },
-	    
+	    is_kernel_running => sub {
+        	my ( $kernel, $heap, $wheel_id ) = @_;
+            $poe_api = _get_poe_api($heap) unless $poe_api;
+            my $state = $poe_api
+                ? eval { $poe_api->api->is_kernel_running }
+                : _DEBUGSHELL_MISSING;
+            $state = 'Error: ' . $@ if $@;
+		    $kernel->post(
+        		$kernel->alias_resolve('server'),
+                'reply_client',
+                $state,
+                $wheel_id,
+            );
+        },
+        kernel_memory_size => sub {
+        	my ( $kernel, $heap, $wheel_id ) = @_;
+            $poe_api = _get_poe_api($heap) unless $poe_api;
+            my $memory = $poe_api
+                ? eval { $poe_api->api->kernel_memory_size() }
+                : _DEBUGSHELL_MISSING;
+            $memory = 'Error: ' . $@ if $@;
+            $memory .= sprintf(" ( %.2f KB, %.2f MB )", $memory/1024, $memory/(1024**2))
+                if looks_like_number($memory);            
+		    $kernel->post(
+        		$kernel->alias_resolve('server'),
+                'reply_client',
+                $memory,
+                $wheel_id,
+            );
+        },
+        event_list          => sub {
+           	my ( $kernel, $heap, $wheel_id ) = @_;
+            $poe_api = _get_poe_api($heap) unless $poe_api;
+            my @events = $poe_api
+                ? eval { $poe_api->api->event_list() }
+                : _DEBUGSHELL_MISSING;
+            @events = 'Error: ' . $@ if $@;
+		    $kernel->post(
+        		$kernel->alias_resolve('server'),
+                'reply_client',
+                \@events,
+                $wheel_id,
+            );
+        },
+        session_alias_list  => sub {
+            my ( $kernel, $heap, $wheel_id ) = @_;
+            $poe_api = _get_poe_api($heap) unless $poe_api;
+            my @aliases = $poe_api
+                ? eval { $poe_api->api->session_alias_list() }
+                : _DEBUGSHELL_MISSING;
+            @aliases = 'Error: ' . $@ if $@;
+            $kernel->post(
+                $kernel->alias_resolve('server'),
+                'reply_client',
+                \@aliases,
+                $wheel_id,
+            );
+        },
+        event_queue_dump    => sub {
+           	my ( $kernel, $heap, $wheel_id ) = @_;
+            $poe_api = _get_poe_api($heap) unless $poe_api;
+            my @events = $poe_api
+                ? eval { $poe_api->api->event_queue_dump() }
+                : _DEBUGSHELL_MISSING;
+            @events = 'Error: ' . $@ if $@;
+		    $kernel->post(
+        		$kernel->alias_resolve('server'),
+                'reply_client',
+                \@events,
+                $wheel_id,
+            );
+        },
+        session_pid_count   => sub {
+           	my ( $kernel, $heap, $wheel_id, $sessionId  ) = @_;
+            $poe_api = _get_poe_api($heap) unless $poe_api;            
+            my $pid_count;
+            if ( $sessionId ){
+                $pid_count = $poe_api
+                    ? eval { $poe_api->api->session_pid_count($sessionId) }
+                    : _DEBUGSHELL_MISSING;
+                $pid_count = 'Error: ' . $@ if $@;
+            }
+            else {
+                $pid_count = ' ** Error: no session ID provided'
+            }
+		    $kernel->post(
+        		$kernel->alias_resolve('server'),
+                'reply_client',
+                $pid_count,
+                $wheel_id,
+            );
+        },
+        handle_count        => sub {
+           	my ( $kernel, $heap, $wheel_id ) = @_;
+            $poe_api = _get_poe_api($heap) unless $poe_api;
+            my $handles = $poe_api
+                ? eval { $poe_api->api->handle_count() }
+                : _DEBUGSHELL_MISSING;
+            $handles = 'Error: ' . $@ if $@;
+		    $kernel->post(
+        		$kernel->alias_resolve('server'),
+                'reply_client',
+                $handles,
+                $wheel_id,
+            );
+        },
+        get_safe_signals     => sub {
+           	my ( $kernel, $heap, $wheel_id ) = @_;
+            $poe_api = _get_poe_api($heap) unless $poe_api;
+            my @sigs = _DEBUGSHELL_MISSING;
+            if ( $poe_api ){
+                eval { @sigs = $poe_api->api->get_safe_signals() };
+                @sigs = 'Error: ' . $@ if $@;
+            }
+		    $kernel->post(
+        		$kernel->alias_resolve('server'),
+                'reply_client',
+                "@sigs",
+                $wheel_id,
+            );
+        },
+        session_handle_count => sub {
+           	my ( $kernel, $heap, $wheel_id, $sessionId  ) = @_;
+            $poe_api = _get_poe_api($heap) unless $poe_api;
+            my $handle_count = _DEBUGSHELL_MISSING;
+            if ( $sessionId ){
+                eval { $handle_count = $poe_api->api->session_handle_count($sessionId) };
+                $handle_count = 'Error: ' . $@ if $@;
+            }
+            else {
+                $handle_count = ' ** Error: no session ID provided'
+            }
+		    $kernel->post(
+        		$kernel->alias_resolve('server'),
+                'reply_client',
+                $handle_count,
+                $wheel_id,
+            );
+        },
+        session_memory_size  => sub {
+           	my ( $kernel, $heap, $wheel_id, $sessionId  ) = @_;
+            $poe_api = _get_poe_api($heap) unless $poe_api;            
+            my $memory;
+            if ( $sessionId ){
+                $memory = $poe_api
+                    ? eval { $poe_api->api->session_memory_size($sessionId) }
+                    : _DEBUGSHELL_MISSING;
+                $memory = 'Error: ' . $@ if $@;
+                $memory .= sprintf(" ( %.2f KB, %.2f MB )", $memory/1024, $memory/(1024**2))
+                    if looks_like_number($memory);
+            }
+            else {
+                $memory = ' ** Error: no session ID provided'
+            }
+		    $kernel->post(
+        		$kernel->alias_resolve('server'),
+                'reply_client',
+                $memory,
+                $wheel_id,
+            );
+        },
+        session_event_list  => sub {
+            my ( $kernel, $heap, $wheel_id, $sessionId  ) = @_;
+            $poe_api = _get_poe_api($heap) unless $poe_api;
+            my @event_list;
+            if ( $sessionId ){
+                @event_list = $poe_api
+                    ? eval { $poe_api->api->session_event_list([$sessionId]) }
+                    : _DEBUGSHELL_MISSING;
+                @event_list = 'Error: ' . $@ if $@;
+            }
+            else {
+                @event_list = ' ** Error: no session ID provided'
+            }
+            $kernel->post(
+                $kernel->alias_resolve('server'),
+                'reply_client',
+                \@event_list,
+                $wheel_id,
+            );
+        },
         # Shutdown the server session
         # ===========================
-        server_shutdown => sub {
+        server_shutdown     => sub {
             my ( $kernel, $heap, $wheel_id ) = @_;
             my $server = $kernel->alias_resolve('server');
             my $postback = $server->postback( "server_shutdown", $wheel_id );
@@ -302,6 +493,21 @@ sub _boot_instance {
         })
     };
     return $@ ? $@ : 1;
+}
+
+=head4 B<_get_poe_api>
+
+  Returns the DebugShell subclass which includes access to the POE::API::Peek
+
+=cut
+
+sub _get_poe_api {
+    my $heap = shift;
+    eval {
+        $heap->{self}->modules->{debugShell}
+                     ->{(keys %{$heap->{self}->modules->{debugShell}})[0]}
+                     ->new
+    }
 }
 
 no Moose; 

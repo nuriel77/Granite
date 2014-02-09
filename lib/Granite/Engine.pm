@@ -361,13 +361,13 @@ sub _controller {
         return;
     }
 
-    # Get all commands, skip shortcuts
-    # ================================
-    my @commands = grep { length($_) > 1 } sort keys $heap->{self}->client_commands;
+    # Get all commands
+    # ================
+    my @commands = sort keys $heap->{self}->client_commands;
     if ( exists $heap->{self}->client_privmode->{$wheel_id} ){
         $log->debug('[ ' . $_[SESSION]->ID(). " ] User $wheel_id is in privmode");
         for ( sort keys $heap->{self}->engine_commands ) {
-            next if $_ ~~ @commands || length($_) == 1;
+            next if $_ ~~ @commands;
             push @commands, $_;
             $heap->{self}->client_commands->{$_} = $heap->{self}->engine_commands->{$_};
         }

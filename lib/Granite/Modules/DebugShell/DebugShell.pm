@@ -5,7 +5,7 @@ extends 'POE::Component::DebugShell';
 use Data::Dumper;
 use POE::API::Peek;
 
-has _api => (
+has api => (
 	is => 'ro',
 	isa => 'Object',
 	writer => '_set_api',
@@ -31,7 +31,7 @@ sub show_sessions_aliases {
     return undef if !$self->_has_api;
     my $ret_val = eval {
         POE::Component::DebugShell::cmd_list_aliases(
-            api => $self->_api,
+            api => $self->api,
             args => $args,
         );
     };
@@ -47,7 +47,7 @@ sub show_sessions_stats {
     return undef if !$self->_has_api;
     my $ret_val = eval {
         POE::Component::DebugShell::cmd_session_stats(
-            api => $self->_api,
+            api => $self->api,
             args => $args,
         );
     };
@@ -61,7 +61,7 @@ sub show_sessions_stats {
 sub show_sessions {
 	my $self = shift;
 	return undef if !$self->_has_api;
-	my $ret_val = eval { POE::Component::DebugShell::cmd_show_sessions( api => $self->_api ); };
+	my $ret_val = eval { POE::Component::DebugShell::cmd_show_sessions( api => $self->api ); };
     if ( $@ ){
         $Granite::log->error('Error at ' . __PACKAGE__ . ' line ' . __LINE__ . ': ' . $@);
         return undef;
@@ -73,7 +73,7 @@ sub show_sessions {
 sub show_sessions_queue {
 	my $self = shift;
 	return undef if !$self->_has_api;
-	my $ret_val = eval { POE::Component::DebugShell::cmd_queue_dump( api => $self->_api ); };
+	my $ret_val = eval { POE::Component::DebugShell::cmd_queue_dump( api => $self->api ); };
     if ( $@ ){
         $Granite::log->error('Error at ' . __PACKAGE__ . ' line ' . __LINE__ . ': ' . $@);
         return undef;

@@ -465,12 +465,14 @@ sub _client_reply {
     my $canwrite = _canwrite($heap, $wheel_id);
     my $output = '[' . $wheel_id . '] ';
 
-    $output .= ref $reply ? Dumper $reply : $reply;
-    if ( ref $reply eq 'ARRAY' ){
-        $output .= "\nTotal: " . ( scalar @{$reply} );
-    }
-    elsif ( ref $reply eq 'HASH' ){
-        $output .= "\nTotal: " . ( scalar keys %{$reply} );
+    if ( $reply ){
+        $output .= ref $reply ? Dumper $reply : $reply;
+        if ( ref $reply eq 'ARRAY' ){
+            $output .= "\nTotal: " . ( scalar @{$reply} );
+        }
+        elsif ( ref $reply eq 'HASH' ){
+            $output .= "\nTotal: " . ( scalar keys %{$reply} );
+        }
     }
 
     $heap->{server}->{$wheel_id}->{wheel}->put( $output . "\n" )
