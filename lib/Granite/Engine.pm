@@ -5,6 +5,7 @@ use Granite::Component::Server;
 use Granite::Component::Scheduler::Queue;
 use Granite::Component::Scheduler::Nodes;
 use Granite::Component::Scheduler::Queue::Watcher;
+use Coro;
 use Cwd 'getcwd';
 use POE;
 use POE::Wheel::Run;
@@ -173,6 +174,11 @@ sub _init {
         inline_states => {
             _start          => sub {
                 my ($heap, $kernel, $sender, $session ) = @_[ HEAP, KERNEL, SENDER, SESSION ];
+    
+                # At this stage we replace the INT
+                # with a new termination handler
+                # ================================
+                $SIG{INT} = sub { Coro::State->join() };
 
                 $log->debug('[ ' . $session->ID() . ' ] Engine session started.');
                 $heap->{parent} = $sender;
@@ -215,11 +221,18 @@ sub _init {
 =cut
 
 sub _terminate {
-    my ($heap, $kernel, $sender, $session ) = @_[ HEAP, KERNEL, SENDER, SESSION ];
+    my ($heap, $kernel, $sender, $session )
+        = @_[ HEAP, KERNEL, SENDER, SESSION ];
+
     $log->info('[ ' . $session->ID() . ' ] Terminating...(caller: ' . $sender . ')');
     delete $heap->{server};
     unlink $Granite::cfg->{server}->{unix_socket}
         if -e $Granite::cfg->{server}->{unix_socket};
+
+    my $qparent_session = $kernel->alias_resolve('QueueParent');
+    $_[KERNEL]->post( $qparent_session , 'process_new_queue_data', ['shutdown'] )
+        if $qparent_session;
+
     $kernel->stop();
     Granite->QUIT;
 }
@@ -247,7 +260,7 @@ sub _init_modules {
         # Build package name
         my $package = 'Granite::Modules::' . ucfirst($module)
                     . '::' . $Granite::cfg->{modules}->{$module}->{name};
-        $log->debug("Attempting to load modules:'" . $package . "'") if $debug;
+        $log->debug("Attempting to load module '" . $package . "'") if $debug;
         if ( my $error = load_module( $package ) ){
             $log->logcroak("Failed to load module '" . $package . "': $error" );
         }
@@ -255,10 +268,10 @@ sub _init_modules {
             my $instance = $package->new(
                     name     => $package,
                     metadata => $Granite::cfg->{modules}->{$module}->{metadata},
-                    callback => $Granite::cfg->{modules}->{$module}->{callback}
+                    hook => $Granite::cfg->{modules}->{$module}->{hook}
                 );
             $self->modules->{$module}->{$package} = $instance;
-            $log->debug("Loaded module '" . $package . "'") if $debug;
+            $log->debug("Loaded module '" . $package . "' OK") if $debug;
         }
     }    
 
@@ -376,7 +389,7 @@ sub _controller {
         $log->info('[ ' . $_[SESSION]->ID() . " ] Executing client ($wheel_id) command '$cmd'");
         my $ret_val = $heap->{self}->client_commands->{"$cmd"}->( $kernel, $heap, $wheel_id, $args );
 
-        # Command alias "callback"
+        # Command alias "hook"
         # ========================
         $heap->{self}->client_commands->{"$ret_val"}->( $kernel, $heap, $wheel_id, $args )
             if ( $ret_val && $ret_val ~~ @commands );

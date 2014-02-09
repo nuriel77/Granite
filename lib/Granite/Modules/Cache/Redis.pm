@@ -37,20 +37,20 @@ around 'new' => sub {
 
     $self->cache($redis);
 
-    return $self unless $self->{callback};
+    return $self unless $self->{hook};
 
-    $Granite::log->debug('Executing cache module callback');
-    for my $type ( keys %{$self->{callback}} ){
-        my $ret_val = $self->_exec_callback($type, $self->{callback}->{$type});
-        $Granite::log->debug("$type callback returned '$ret_val'")
+    $Granite::log->debug('Executing cache module hook');
+    for my $type ( keys %{$self->{hook}} ){
+        my $ret_val = $self->_exec_hook($type, $self->{hook}->{$type});
+        $Granite::log->debug("$type hook returned '$ret_val'")
             if $ret_val;
     }
 
     return $self;
 };
 
-sub _exec_callback {
-    my ( $self, $type, $callback, $timeout ) = @_;
+sub _exec_hook {
+    my ( $self, $type, $hook, $timeout ) = @_;
     $timeout ||= 2;
     my ( $err, $rc, $output );
     eval {
@@ -58,19 +58,19 @@ sub _exec_callback {
         alarm $timeout;
         if ( $type eq 'script' ){
             die "Script not found or not executable"
-                if ! -f "$callback" || ! -x "$callback";
-            $output = `$callback 2>&1`;
+                if ! -f "$hook" || ! -x "$hook";
+            $output = `$hook 2>&1`;
             $rc = $? >> 8;
         }
         elsif ( $type eq 'code' ){
-            $output = eval $callback;
+            $output = eval $hook;
         }
         $err = $@;
         alarm 0;
     };
     $err .= $@ if $@;
     if ( $err || $rc ){
-        $Granite::log->error("Module $type callback code execution failed: "
+        $Granite::log->error("Module $type hook code execution failed: "
                             . $err . ( $rc ? 'exit code ' . $rc : '' )
                             . ( $output ? ' output: ' . $output : '')
         );

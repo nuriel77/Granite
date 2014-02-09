@@ -34,10 +34,10 @@ has name       => ( is => 'rw', isa => 'Str', required => 1 );
 has metadata   => ( is => 'rw', isa => 'HashRef', );
 
 
-=item * B<callback>
+=item * B<hook>
 =cut
 
-has callback   => ( is => 'rw', isa => 'Any', );
+has hook   => ( is => 'rw', isa => 'Any', );
 
 
 =back
