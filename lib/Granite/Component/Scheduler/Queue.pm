@@ -5,7 +5,7 @@ use POE::Session::YieldCC;
 use POE::XS::Queue::Array;
 use Granite::Component::Scheduler::Job;
 use Data::Dumper;
-use vars qw($log $debug $scheduler $pqa %job_queue);
+use vars qw($log $debug $scheduler $pqa %job_queue $kernel);
 
 before 'new' => sub {
     my $cache_dir = $Granite::cfg->{main}->{cache_dir};
@@ -22,7 +22,8 @@ before 'new' => sub {
 };
 
 sub init {
-    my ( $kernel, $heap, $log, $debug ) = @_[KERNEL, HEAP, ARG0,ARG1 ];
+    $kernel = $_[KERNEL];
+    my ( $heap, $log, $debug ) = @_[HEAP, ARG0,ARG1 ];
 
     my $cache_api;
     my $engine_heap = $kernel->alias_resolve('engine')->get_heap();
@@ -36,15 +37,31 @@ sub init {
     POE::Session::YieldCC->create(
         inline_states => {
             _start => sub {
+                # At this stage, override the sig INT
+                # so we can shutdown nicely. Otherwise
+                # Coro::State woes.
+                $SIG{INT} = \&_killme,
                 $_[KERNEL]->alias_set('QueueParent');
                 $log->debug('[ ' . $_[SESSION]->ID . ' ] At POE::Session::YieldCC');
                 $_[KERNEL]->yield('event_listener', $cache_api);
             },
             event_listener  => \&_wait_for_event,
             process_queue   => \&_process_queue,
+            _stop => sub { POE::Kernel->stop }
         },
         heap => { cache => $cache_api }
     )
+}
+
+sub _killme {
+    $Granite::log->warn('Termination signal detected. Shutting down gracefully...');
+    my $qparent_session = $kernel->alias_resolve('QueueParent');
+    if ( $qparent_session ){
+        $kernel->post( $qparent_session , 'process_new_queue_data', ['shutdown'] )
+    }
+    else {
+        POE::Kernel->stop;
+    }
 }
 
 sub _wait_for_event {
@@ -52,8 +69,13 @@ sub _wait_for_event {
 
     $Granite::log->debug('[ ' . $_[SESSION]->ID . ' ] Listening for new events');
     my ( $ok, $args ) = $_[SESSION]->wait('process_new_queue_data');
-    if ( $ok ){
+    if ( $ok ){        
         $Granite::log->info('[ ' . $_[SESSION]->ID . " ] 'process_new_queue_data' event triggered");
+        if ( $args->[0] eq 'shutdown' ){
+            $Granite::log->info('[ ' . $_[SESSION]->ID . " ] 'shutdown' event triggered");
+            $_[KERNEL]->post($_[SESSION], '_stop');
+            return;
+        }
         $_[KERNEL]->post($_[SESSION], 'process_queue', $args, $cache );
     }
     else {
@@ -65,11 +87,12 @@ sub _wait_for_event {
 }
 
 sub _process_queue {
-    my ( $heap, $kernel, $args, $cache ) = @_[ HEAP, KERNEL, ARG0, ARG1 ];
+    my ( $heap, $args, $cache ) = @_[ HEAP, ARG0, ARG1 ];
     ( $log, $debug ) = ( $Granite::log, $Granite::debug );
 
     $log->debug('[ ' . $_[SESSION]->ID . ' ] At process_queue' )
         if $debug;
+
     # Get all items in active queue
     # compare to items from the scheduler's
     # reservation queue and skip if already enqueued
@@ -147,4 +170,3 @@ sub _enqueue {
 __PACKAGE__->meta->make_immutable(inline_constructor => 0);
 
 1;
-

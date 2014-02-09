@@ -123,7 +123,7 @@ sub _get_client_commands {
                 $postback
             );
         },
-        # Alias callback
+        # Alias hook
         # ==============
         quit => sub { return 'exit' },
         q    => sub { return 'exit' },
