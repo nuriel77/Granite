@@ -80,11 +80,14 @@ sub _exec_hook {
     return $output;
 }
 
+sub get         { shift->cache->get(shift) }
+sub set         { shift->cache->set( shift => shift ) }
+sub delete      { shift->cache->del( shift ) }
+sub get_keys    { shift->cache->keys( shift . '*' ) }
+
 sub DEMOLISH {
     my $self = shift;
     $self->cache->quit() if $self->_has_cache;
 }
-
-sub get_keys { shift->keys( shift . '*' ) }
 
 1;

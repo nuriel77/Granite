@@ -44,11 +44,38 @@ has hook   => ( is => 'rw', isa => 'Any', );
 
 =head1 REQUIRES
 
-#B<get_all_instances>
+  B<get_keys>
 
 =cut
 
 requires 'get_keys';
+
+=head1 REQUIRES
+
+  B<get>
+
+=cut
+
+requires 'get';
+
+
+=head1 REQUIRES
+
+  B<set>
+
+=cut
+
+requires 'set';
+
+
+=head1 REQUIRES
+
+  B<delete>
+
+=cut
+
+requires 'delete';
+
 
 no Moose;
 
