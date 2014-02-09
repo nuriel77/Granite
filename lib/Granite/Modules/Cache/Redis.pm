@@ -8,7 +8,21 @@ use namespace::autoclean;
 
 use constant TIMEOUT => 2;
 
-use Data::Dumper;
+=head1 DESCRIPTION
+
+  Redis cache backend module for Granite  
+
+=head1 SYNOPSIS
+
+  See configuration file for more details
+
+=head2 METHOD MODIFIERS
+
+=head4 B<around 'new'>
+
+    Override constructor, load Redis
+
+=cut
 
 around 'new' => sub {
     my $orig = shift;
@@ -49,6 +63,15 @@ around 'new' => sub {
     return $self;
 };
 
+
+=head2 METHODS 
+
+=head4 B<_exec_hook>
+
+  Execute hook script or code
+
+=cut
+
 sub _exec_hook {
     my ( $self, $type, $hook, $timeout ) = @_;
     $timeout ||= 2;
@@ -80,14 +103,60 @@ sub _exec_hook {
     return $output;
 }
 
+=head4 B<get>
+
+  Get a key
+
+=cut
+
 sub get         { shift->cache->get(shift) }
+
+
+=head4 B<set>
+
+  Set a key/value
+
+=cut
+
 sub set         { shift->cache->set( shift => shift ) }
+
+
+=head4 B<delete>
+
+  Delete a key/value
+
+=cut
+
 sub delete      { shift->cache->del( shift ) }
+
+
+=head4 B<get_keys>
+
+  Get multiple keys, can use prefix.
+
+=cut
+
 sub get_keys    { shift->cache->keys( shift . '*' ) }
+
+
+=head4 B<DEMOLISH>
+
+  Moose demolish, break connection to Redis.
+
+=cut
 
 sub DEMOLISH {
     my $self = shift;
     $self->cache->quit() if $self->_has_cache;
 }
+
+__PACKAGE__->meta->make_immutable(inline_constructor => 0);
+
+
+=head1 AUTHOR
+
+  Nuriel Shem-Tov
+
+=cut
 
 1;
