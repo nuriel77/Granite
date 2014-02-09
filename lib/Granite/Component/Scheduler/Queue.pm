@@ -96,12 +96,24 @@ sub _process_queue {
 
 sub _populate_pqa {
     my $cache = shift;
-    my @keys = $cache->get_keys('job_*');
-    for ( @keys ){
-        $Granite::log->debug('Cache backend has job key ' . $_ );
-        my $hash = $cache->get($_);
-        my $job = JSON::XS->new->allow_blessed->decode( $hash );
-        $pqa->enqueue($job->{priority}, $job);
+    my @keys = $cache->get_keys( 'job_' );
+    return unless @keys;
+    if( ref $keys[0] eq 'HASH' ){
+        for ( keys $keys[0] ){
+            my $hash = $keys[0]->{$_};
+            $Granite::log->debug('Cache backend has job key ' . $_ );
+            my $job = JSON::XS->new->allow_blessed->decode( $hash );
+            $pqa->enqueue($job->{priority}, $job);
+        }
+    }
+    else {
+        for ( @keys ){
+            my $hash = $cache->get($_);
+            next unless $hash;
+            $Granite::log->debug('Cache backend has job key ' . $_ );
+            my $job = JSON::XS->new->allow_blessed->decode( $hash );
+            $pqa->enqueue($job->{priority}, $job);
+        }
     }
 }
 

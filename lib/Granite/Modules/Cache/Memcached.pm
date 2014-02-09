@@ -1,11 +1,11 @@
-package Granite::Modules::Cache::Redis;
+package Granite::Modules::Cache::Memcached;
 use Moose;
+use Cache::Memcached;
 use Scalar::Util 'looks_like_number';
-use MooseX::NonMoose;
-extends 'Redis';
 with 'Granite::Modules::Cache';
 use namespace::autoclean;
 
+use constant DEFAULT_EXPIRATION => 2592000; # 30 days
 use constant TIMEOUT => 2;
 
 use Data::Dumper;
@@ -15,27 +15,25 @@ around 'new' => sub {
     my $class = shift;
     my $self = $class->$orig(@_);
     my %connection_args;
-
     for ( keys %{$self->{metadata}} ){
         next unless $self->{metadata}->{$_};
         $connection_args{$_} = looks_like_number($self->{metadata}->{$_})
             ? $self->{metadata}->{$_}*1
             : $self->{metadata}->{$_}
     }
-
-    my $redis;
+    my $memc;
     eval {
         local $SIG{ALRM} = sub { die "TIMEOUT\n" };
         alarm TIMEOUT;
-        $redis = Redis->new(%connection_args);
+        $memc = new Cache::Memcached { %connection_args };
         alarm 0;
     };
     if ( $@ ){
-        $Granite::log->error('Failed to construct new Redis object: ' . $@);
+        $Granite::log->error('Failed to construct new Granite::Modules::Cache::Memcached::SubClass object: ' . $@);
         return undef;
     }
 
-    $self->cache($redis);
+    $self->cache($memc) if $memc;
 
     return $self unless $self->{callback};
 
@@ -80,11 +78,19 @@ sub _exec_callback {
     return $output;
 }
 
-sub DEMOLISH {
-    my $self = shift;
-    $self->cache->quit() if $self->_has_cache;
+sub get_keys {
+    my ( $self, $prefix ) = @_;
+    my @keys;
+    $prefix ||= 'job_';
+    for (1..10000){
+        my $keyname = $prefix . $_;
+        push @keys, $keyname;
+    }
+    my $hashref = $self->cache->get_multi(@keys);
 }
 
-sub get_keys { shift->keys( shift . '*' ) }
+sub set     { shift->cache->set(shift, shift, DEFAULT_EXPIRATION) }
+sub get     { shift->cache->get(shift) }
+sub delete  { shift->cache->delete(shift) }
 
 1;
