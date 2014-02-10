@@ -39,17 +39,18 @@ local $| = 1;
 # and see how to use default certificates
 #
 
-my $servername = $ENV{GRANITE_HOSTNAME} || 'Granite HPC Cloud Scheduler';
-my $host   = $ENV{GRANITE_BIND}         || '127.0.0.1';
-my $port   = $ENV{GRANITE_PORT}         || 21212;
-my $capath = $ENV{GRANITE_CA_PATH}      || 'conf/ssl';
-my $cacert = $ENV{GRANITE_CA_CERT}      || $capath.'/ca.crt';
-my $crt    = $ENV{GRANITE_CERT}         || 'conf/ssl/client01.crt';
-my $key    = $ENV{GRANITE_KEY}          || 'conf/ssl/client01.key';
-my $password = 'system';
+our $servername = $ENV{GRANITE_HOSTNAME} || 'Granite HPC Cloud Scheduler';
+our $host   = $ENV{GRANITE_BIND}         || '127.0.0.1';
+our $port   = $ENV{GRANITE_PORT}         || 21212;
+our $capath = $ENV{GRANITE_CA_PATH}      || 'conf/ssl';
+our $cacert = $ENV{GRANITE_CA_CERT}      || $capath.'/ca.crt';
+our $crt    = $ENV{GRANITE_CERT}         || 'conf/ssl/client01.crt';
+our $key    = $ENV{GRANITE_KEY}          || 'conf/ssl/client01.key';
+our $password = 'system';
+$timeout = 5;
 
 my $test_connections = $ENV{GRANITE_TEST_MAX_CONNECTIONS} || 10;
-%check = ( tcp => { 21212 => { name => 'Granite' } } );
+%check = ( tcp => { $port => { name => 'Granite' } } );
 $client_connections = 0;
 
 #
@@ -184,8 +185,8 @@ my $run = sub {
                 if ( $client_connections >= $test_connections ){
                     $poe_kernel->stop();
                     sleep 1;
-                    check_ports('localhost', $timeout, \%check);
-                    is ( $check{'tcp'}->{'21212'}->{open}, 0,
+                    check_ports($host, $timeout, \%check);
+                    is ( $check{'tcp'}->{$port}->{open}, 0,
                         'check server is really down');
                     pass ('Done testing');
                     done_testing();
@@ -226,19 +227,20 @@ sub run_test {
 
     POE::Kernel->stop();
 
-    $timeout = 5;
     %check = ( tcp => { 21212 => { name => 'Granite' } } );
     $g = Granite->new();
 
     # Disable logging
-    silence_logger($Granite::log);
+    silence_logger($Granite::log) unless $ENV{GRANITE_KEEP_LOGGING};
 
     # Adjust running config for testing purposes
     delete $g->{cfg}->{server}->{cacert};
+    delete $g->{cfg}->{server}->{unix_socket};
     $g->{cfg}->{server}->{client_certificate} = 'no';
     $g->{cfg}->{server}->{verify_client} = 'no';
     $g->{cfg}->{server}->{cert} = 'conf/ssl/granite.default.crt';
     $g->{cfg}->{server}->{key} = 'conf/ssl/granite.default.key';
+
     
     $server_session = POE::Session->create(
         inline_states => {
@@ -249,8 +251,8 @@ sub run_test {
                 ok ( ( $s->_has_mysession and $s->mysession->ID() == ($_[SESSION]->ID()+1) ),
                     'verify server returns session ID ' . $s->mysession->ID() );
 
-                check_ports('localhost', $timeout, \%check);
-                is ( $check{'tcp'}->{'21212'}->{open}, 1,
+                check_ports($host, $timeout, \%check);
+                is ( $check{'tcp'}->{$port}->{open}, 1,
                     'check server port listening');
                 $kernel->sig(TERM => '_stop');
             },
