@@ -1,13 +1,15 @@
 package Granite::Engine;
 use Moose;
+use MooseX::MethodAttributes;
 use Granite::Engine::Daemonize;
 use Granite::Component::Server;
 use Granite::Component::Scheduler::Queue;
-use Granite::Component::Scheduler::Nodes;
 use Granite::Component::Scheduler::Queue::Watcher;
-use Coro;
+use Granite::Component::Scheduler::Nodes;
+use Granite::Component::ResourceManager;
 use Cwd 'getcwd';
 use POE;
+use POE::Kernel { loop => 'POE::XS::Loop::Poll' };
 use POE::Wheel::Run;
 use Data::Dumper;
 with 'Granite::Engine::Logger',
@@ -17,9 +19,6 @@ with 'Granite::Engine::Logger',
 use namespace::autoclean;
 use vars qw($log $debug $engine_session);
 
-=head1 NAME
-
-Granite::Engine
 
 =head1 DESCRIPTION
 
@@ -43,6 +42,17 @@ Granite::Engine
 has modules    => (
     is => 'rw',
     isa => 'HashRef',
+    default => sub {{}},
+    lazy => 1,
+);
+
+=item * L<resources> 
+=cut
+
+has rsm        => (
+    is => 'ro',
+    isa => 'Object',
+    writer => '_set_rsm',
     default => sub {{}},
     lazy => 1,
 );
@@ -118,7 +128,7 @@ has client_privmode => (
 
 =cut
 
-sub run {
+sub run : Local {
     my $self = shift;
     ( $log, $debug ) = ($self->logger, $self->debug);
 
@@ -154,7 +164,7 @@ sub run {
 
 =cut
 
-sub _init {
+sub _init : Local {
     my $self = shift;
 
     $log->debug('At Granite::Engine::init') if $debug;
@@ -220,14 +230,19 @@ sub _init {
 
 =cut
 
-sub _terminate {
+sub _terminate
+        : Global
+        : Does('ACL')
+            AllowedRole('admin')
+{
     my ($heap, $kernel, $sender, $session )
         = @_[ HEAP, KERNEL, SENDER, SESSION ];
 
     $log->info('[ ' . $session->ID() . ' ] Terminating...(caller: ' . $sender . ')');
     delete $heap->{server};
     unlink $Granite::cfg->{server}->{unix_socket}
-        if -e $Granite::cfg->{server}->{unix_socket};
+        if exists $Granite::cfg->{server}->{unix_socket}
+            && -e $Granite::cfg->{server}->{unix_socket};
 
     my $qparent_session = $kernel->alias_resolve('QueueParent');
     $_[KERNEL]->post( $qparent_session , 'process_new_queue_data', ['shutdown'] )
@@ -250,7 +265,11 @@ sub _terminate {
   
 =cut
 
-sub _init_modules {
+sub _init_modules
+        : Local
+        : Does('ACL')
+            AllowedRole('admin')
+{
     my $self = shift;
 
     MODULES:
@@ -302,6 +321,11 @@ sub _init_modules {
     $self->_set_cloud ( $self->modules->{cloud}->{ (keys %{$self->modules->{cloud}})[0] } )
         && delete $self->modules->{cloud};
         
+    # Set ResouceManager
+    # ==================
+    $self->_set_rsm( Granite::Component::ResourceManager->new( cloud => $self->cloud ) );
+
+    my $resources = $self->rsm->get_cloud_resources;
 
 }
 
@@ -311,7 +335,7 @@ sub _init_modules {
 
 =cut
 
-sub child_sessions {
+sub child_sessions : Local {
     my ($heap, $kernel, $operation, $child) = @_[HEAP, KERNEL, ARG0, ARG1];
 
     if ($operation eq 'create' or $operation eq 'gain') {
@@ -336,7 +360,11 @@ sub child_sessions {
 
 =cut
 
-sub _controller {
+sub _controller
+        : Local
+        : Does('ACL')
+          AllowedRole('admin')
+{
     my ($kernel, $heap, $input, $wheel_id) = @_[KERNEL, HEAP, ARG0, ARG1];
 
     my ($cmd, $args) = split(' ', $input);
@@ -404,7 +432,7 @@ sub _controller {
 
 =cut
 
-sub handle_default {
+sub handle_default : Local {
     my ($event, $args) = @_[ARG0, ARG1];
     $log->logcroak(
       'Session [ ' . $_[SESSION]->ID .

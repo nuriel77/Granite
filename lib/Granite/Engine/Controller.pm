@@ -398,6 +398,16 @@ sub _get_engine_commands {
                 $wheel_id,
             );
         },
+        exec_func           => sub {
+            my ( $kernel, $heap, $wheel_id, $args  ) = @_;
+            
+            $kernel->post(
+                $kernel->alias_resolve('server'),
+                'reply_client',
+                'work in progress',
+                $wheel_id,
+            );
+        },
         # Shutdown the server session
         # ===========================
         server_shutdown     => sub {
@@ -463,7 +473,7 @@ sub _get_scheduler_nodes {
 
 =head4 B<_get_hypervisor_list>
 
-  Get hypervisor list from cloud
+  Get detailed hypervisor list from cloud
 
 =cut
 
