@@ -13,7 +13,6 @@ use POE qw/
     Wheel::ReadWrite
 /;
 
-use MooseX::MethodAttributes;
 use Moose::Util::TypeConstraints;
 use Moose;
     with 'Granite::Component::Server::SSLify';
@@ -186,11 +185,7 @@ sub BUILD {
 
 =cut
 
-sub run
-    : Global
-    : Does('ACL')
-      AllowedRole('admin')
-{
+sub run {
 
     ( $log, $debug ) = ( $Granite::log, $Granite::debug );
     $self = shift;
@@ -295,11 +290,7 @@ sub run
 
 =cut
 
-sub server_error
-    : Global
-    : Does('ACL')
-      AllowedRole('admin')
-{
+sub server_error {
     my ($operation, $errnum, $errstr ) = @_[ARG0..ARG2];
 
     $log->error('[ ' . $_[SESSION]->ID() 
