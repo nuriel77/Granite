@@ -7,13 +7,13 @@ use vars qw(%hash);
 
 =head1 DESCRIPTION
 
-  The default cache backend - DB_File
+    The default cache backend - DB_File
 
 =head1 SYNOPSIS
 
-  See configuration file for more details
+    See configuration file for more details
 
-=head2 METHOD MODIFIERS
+=head1 METHOD MODIFIERS
 
 =head4 B<around 'new'>
 
@@ -35,7 +35,7 @@ around new => sub {
     my $cache_dir = _verify_dir( $self->{metadata}->{cache_dir} || $Granite::cfg->{main}->{cache_dir} );
     my $file_name = $self->{metadata}->{file_name};
 
-    tie %hash, "DB_File", $cache_dir.'/'.$file_name, O_RDWR|O_CREAT, 0666, $DB_HASH
+    tie %hash, "DB_File", $cache_dir.'/'.$file_name, O_RDWR|O_CREAT, 0600, $DB_HASH
         or $Granite::log->logdie( "Cannot open file '".$cache_dir."/jobQueue.db': $!" );
 
     return $self->cache($self) unless $self->{hook};
@@ -50,10 +50,11 @@ around new => sub {
     return $self;
 };
 
+=head1 METHODS
 
 =head4 B<get>
 
-  Get a key
+    Get a key
 
 =cut
 
@@ -64,7 +65,7 @@ sub get {
 
 =head4 B<set>
 
-  Set a key/value
+    Set a key/value
 
 =cut
 
@@ -75,7 +76,7 @@ sub set {
 
 =head4 B<delete>
 
-  Delete key/value
+    Delete key/value
 
 =cut
 
@@ -86,7 +87,7 @@ sub delete {
 
 =head4 B<get_keys>
 
-  Get multuple keys, can provide a prefix
+    Get multuple keys, can provide a prefix
 
 =cut
 
@@ -97,7 +98,7 @@ sub get_keys {
 
 =head4 B<list>
 
-  List all keys
+    List all keys
 
 =cut
 
@@ -105,7 +106,7 @@ sub list { return join "\n", sort keys %hash }
 
 =head4 B<_verify_dir>
 
-  Verify directory exists in config and is writable
+    Verify directory exists in config and is writable
 
 =cut
 
@@ -122,7 +123,7 @@ sub _verify_dir {
 
 =head4 B<DEMOLISH>
 
-  untie the has on class destruction
+    untie the has on class destruction
 
 =cut
 
@@ -132,7 +133,7 @@ __PACKAGE__->meta->make_immutable(inline_constructor => 0);
 
 =head1 AUTHOR
 
-  Nuriel Shem-Tov
+    Nuriel Shem-Tov
 
 =cut
 

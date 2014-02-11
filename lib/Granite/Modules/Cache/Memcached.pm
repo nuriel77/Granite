@@ -9,7 +9,21 @@ use namespace::autoclean;
 use constant DEFAULT_EXPIRATION => 2592000; # 30 days
 use constant TIMEOUT => 2;
 
-use Data::Dumper;
+=head1 DESCRIPTION
+
+    Pluggable memcached module
+
+=head1 SYNOPSIS
+
+    See configuration on how to load modules
+
+=head1 METHOD MODIFIERS
+
+=head4 B<around new> 
+
+    Overrides default constructor
+
+=cut
 
 around 'new' => sub {
     my $orig = shift;
@@ -54,41 +68,19 @@ around 'new' => sub {
     return $self;
 };
 
-sub _exec_hook {
-    my ( $self, $type, $hook, $timeout ) = @_;
-    $timeout ||= 2;
-    my ( $err, $rc, $output );
-    eval {
-        local $SIG{ALRM} = sub { die "TIMEOUT\n" };
-        alarm $timeout;
-        if ( $type eq 'script' ){
-            die "Script not found or not executable"
-                if ! -f "$hook" || ! -x "$hook";
-            $output = `$hook 2>&1`;
-            $rc = $? >> 8;
-        }
-        elsif ( $type eq 'code' ){
-            $output = eval $hook;
-        }
-        $err = $@;
-        alarm 0;
-    };
-    $err .= $@ if $@;
-    if ( $err || $rc ){
-        $Granite::log->error("Module $type hook code execution failed: "
-                            . $err . ( $rc ? 'exit code ' . $rc : '' )
-                            . ( $output ? ' output: ' . $output : '')
-        );
-        return undef;
-    }
-    chomp($output);
-    return $output;
-}
+=head1 METHODS 
+
+=head4 <get_keys>
+
+    Get key listing
+
+=cut
 
 sub get_keys {
     my ( $self, $prefix ) = @_;
     my @keys;
     $prefix ||= 'job_';
+    # FIXME: There's a way to get keys from memcached
     for (1..10000){
         my $keyname = $prefix . $_;
         push @keys, $keyname;
@@ -96,8 +88,36 @@ sub get_keys {
     my $hashref = $self->cache->get_multi(@keys);
 }
 
+=head4 B<set>
+
+    Set key/value
+
+=cut
+
 sub set     { shift->cache->set(shift, shift, DEFAULT_EXPIRATION) }
+
+=head4 B<get>
+
+    Get values by keyname
+
+=cut
+
 sub get     { shift->cache->get(shift) }
+
+=head4 <delete>
+
+    Delete key/value
+
+=cut
+
 sub delete  { shift->cache->delete(shift) }
+
+__PACKAGE__->meta->make_immutable(inline_constructor => 0);
+
+=head1 AUTHOR
+
+    Nuriel Shem-Tov
+
+=cut
 
 1;

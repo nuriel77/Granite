@@ -50,6 +50,8 @@ sub process {
 =head4 B<_in_session>
 
   Job lifecycle starts here
+  
+  We define 5 states where the transition occur when state conditions are met.
 
 =cut
 
@@ -66,23 +68,28 @@ sub _in_session {
     (
         inline_states =>
         {
-            # Start
+            # STATE Setup
+            # ===========
             _start            => \&_init,
             setup_failure     => \&_failed_setup,
-            # State resources
+            # STATE Resources
+            # ===============
             resources_search  => \&_resources_search,
             resources_success => \&_resouces_success,
             resources_failure => \&_resources_failure,
-            # State spawn
+            # STATE spawn
+            # ===========
             spawn_instances   => \&_spawn_instances,
             spawn_success     => \&_spawn_success,
             spawn_failure     => \&_spawn_failure,
-            # State job
+            # STATE job
+            # =========
             job_submit        => \&_job_submit,
             job_running       => \&_job_running,
             job_failure       => \&_job_failure,
             job_complete      => \&_job_complete,
-            # End
+            # STATE Complete
+            # ==============
             cleanup           => \&_cleanup,
             _stop             => \&_leave,
         },

@@ -1,0 +1,14 @@
+{
+    "connect_info" : {
+        "dsn" : "dbi:mysql:granite;host=localhost",
+        "user" : "granite",
+        "password" : "system",
+        "AutoCommit" : "1",
+        "mysql_enable_utf8" : "1",
+        "options" : {
+            "PrintError" : "1",
+            "RaieError" : "1"
+        }
+    }
+
+}

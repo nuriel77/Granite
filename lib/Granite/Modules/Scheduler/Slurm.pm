@@ -8,6 +8,20 @@ use Moose;
          'Granite::Utils::Cmd';
 use namespace::autoclean;
 
+=head1 DESCRIPTION
+
+Slurm API pluggable module
+  
+=head1 SYNOPSIS
+
+See configuration file on how to load modules
+  
+=head1 METHOD MODIFIERS
+
+around 'new' => overrides default constructor
+
+=cut
+
 around 'new' => sub {
     my $orig = shift;
     my $class = shift;
@@ -36,11 +50,25 @@ around 'new' => sub {
     return $self;    
 };
 
+=head1 METHODS
+
+=head4 B<get_queue>
+
+Get the schedulers queues
+
+=cut
+
 sub get_queue {
     my $self = shift;
     my $sq = $self->scheduler->load_jobs();
     return $sq->{job_array} if $sq->{job_array};
 }
+
+=head4 B<get_nodes> 
+
+Get the schedulers visible nodes
+
+=cut
 
 sub get_nodes {
     my $self = shift;
@@ -53,5 +81,11 @@ sub get_nodes {
 }
 
 __PACKAGE__->meta->make_immutable(inline_constructor => 0);
+
+=head1 AUTHOR
+
+Nuriel Shem-Tov
+
+=cut
 
 1;

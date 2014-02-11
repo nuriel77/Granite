@@ -12,16 +12,21 @@ use strict 'vars';
 
 use 5.14.2;
 
-$VERSION = '1.001';
-
-
 =head1 NAME
 
   Granite - Scheduling HPC in the Cloud 
 
-=head1 VERSION
+=head1 VERSION v1.001
 
-  Version 1.0 of the application.
+  Version 1.001 of the application.
+
+=cut 
+
+$VERSION = '1.001';
+
+=head1 DESCRIPTION
+
+  Daemon manager application for Scheduling for HPC in the cloud
 
 =head1 SYNOPSIS
 
