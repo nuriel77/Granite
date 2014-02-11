@@ -234,12 +234,12 @@ sub run_test {
     silence_logger(Granite->log) unless $ENV{GRANITE_KEEP_LOGGING};
 
     # Adjust running config for testing purposes
-    delete $g->{cfg}->{server}->{cacert};
-    delete $g->{cfg}->{server}->{unix_socket};
-    $g->{cfg}->{server}->{client_certificate} = 'no';
-    $g->{cfg}->{server}->{verify_client} = 'no';
-    $g->{cfg}->{server}->{cert} = 'conf/ssl/granite.default.crt';
-    $g->{cfg}->{server}->{key} = 'conf/ssl/granite.default.key';
+    delete Granite->cfg->{server}->{cacert};
+    delete Granite->cfg->{server}->{unix_socket};
+    Granite->cfg->{server}->{client_certificate} = 'no';
+    Granite->cfg->{server}->{verify_client} = 'no';
+    Granite->cfg->{server}->{cert} = 'conf/ssl/granite.default.crt';
+    Granite->cfg->{server}->{key} = 'conf/ssl/granite.default.key';
 
     
     $server_session = POE::Session->create(

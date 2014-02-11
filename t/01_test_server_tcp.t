@@ -19,13 +19,14 @@ sub run_test {
     $g = Granite->new();
 
     # Disable logging
-    silence_logger(Granite->log);
+    silence_logger(Granite->log) unless $ENV{GRANITE_LOG};
 
     # Adjust running config for testing purposes
-    delete $g->{cfg}->{server}->{cacert};
-    $g->{cfg}->{server}->{client_certificate} = 'no';
-    $g->{cfg}->{server}->{cert} = 'conf/ssl/granite.default.crt';
-    $g->{cfg}->{server}->{key} = 'conf/ssl/granite.default.key';
+    delete Granite->cfg->{server}->{cacert};
+    delete Granite->cfg->{server}->{unix_socket};
+    Granite->cfg->{server}->{client_certificate} = 'no';
+    Granite->cfg->{server}->{cert} = 'conf/ssl/granite.default.crt';
+    Granite->cfg->{server}->{key} = 'conf/ssl/granite.default.key';
 
     # Check TCP server
     my $s = Granite::Component::Server->new()->run( 1 );

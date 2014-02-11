@@ -24,7 +24,7 @@ $password = 'system';
 silence_logger(Granite->log);
 
 # Adjust running config for testing purposes
-$g->{cfg}->{server}->{unix_socket} = '/tmp/granited.socket';
+Granite->cfg->{server}->{unix_socket} = '/tmp/granited.socket';
 
 # Check server
 &start_client_test;
@@ -35,7 +35,7 @@ $s->_unset_mysession;
 $poe_kernel->run();
 
 sleep 1;
-ok ( ( not -S $g->{cfg}->{server}->{unix_socket} ), 'socket stopped' );
+ok ( ( not -S Granite->cfg->{server}->{unix_socket} ), 'socket stopped' );
 
 done_testing();
 
@@ -49,7 +49,7 @@ sub start_server{
 
 sub check_socket {
     ok (
-        ( -e $g->{cfg}->{server}->{unix_socket} && -S $g->{cfg}->{server}->{unix_socket}),
+        ( -e Granite->cfg->{server}->{unix_socket} && -S Granite->cfg->{server}->{unix_socket}),
         'check socket created'
     );
 
@@ -82,7 +82,7 @@ sub client_init {
     my $heap = $_[HEAP];
     $heap->{connect_wheel} = POE::Wheel::SocketFactory->new(
         SocketDomain  => AF_UNIX,
-        RemoteAddress => $g->{cfg}->{server}->{unix_socket},
+        RemoteAddress => Granite->cfg->{server}->{unix_socket},
         SuccessEvent  => 'sock_connected',
         FailureEvent  => 'sock_error',
     ) or die $!;
