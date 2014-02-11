@@ -108,23 +108,6 @@ has cache      => (
     default => sub {{}},
 );
 
-=item * L<debug> 
-=cut
-
-has debug      => (
-    is => 'ro',
-    isa => 'Bool'
-);
-
-=item * L<logger> 
-=cut
-
-has logger     => (
-    is => 'ro',
-    isa => 'Object',
-    required => 1
-);
-
 =item * L<client_privmode>
 =cut
 
@@ -147,9 +130,9 @@ has client_privmode => (
 
 sub run {
     my $self = shift;
-    ( $log, $debug ) = ($self->logger, $self->debug);
+    ( $log, $debug ) = (Granite->log, Granite->debug);
 
-    if ( !$ENV{GRANITE_FOREGROUND} && $Granite::cfg->{main}->{daemonize} =~ /yes/i ){
+    if ( !$ENV{GRANITE_FOREGROUND} && Granite->cfg->{main}->{daemonize} =~ /yes/i ){
         # Daemonize
         # =========
         my $daemon = Granite::Engine::Daemonize->new(
@@ -158,7 +141,7 @@ sub run {
             poe_kernel => $poe_kernel,
             workdir  => $ENV{GRANITE_WORK_DIR} || getcwd(),
             pid_file => $ENV{GRANITE_PID_FILE}
-                || $Granite::cfg->{main}->{pid_file}
+                || Granite->cfg->{main}->{pid_file}
                 || '/var/run/granite/granite.pid'
         );
         $poe_kernel->has_forked if $daemon;
@@ -218,7 +201,7 @@ sub _init {
 
                 # Server
                 # ======
-                unless ( $ENV{GRANITE_NO_TCP} or $Granite::cfg->{server}->{disable} =~ /yes/i ){
+                unless ( $ENV{GRANITE_NO_TCP} or Granite->cfg->{server}->{disable} =~ /yes/i ){
                     $kernel->yield("init_server", $log, $debug );
                 }
 
@@ -253,9 +236,9 @@ sub _terminate {
 
     $log->info('[ ' . $session->ID() . ' ] Terminating...(caller: ' . $sender . ')');
     delete $heap->{server};
-    unlink $Granite::cfg->{server}->{unix_socket}
-        if exists $Granite::cfg->{server}->{unix_socket}
-            && -e $Granite::cfg->{server}->{unix_socket};
+    unlink Granite->cfg->{server}->{unix_socket}
+        if exists Granite->cfg->{server}->{unix_socket}
+            && -e Granite->cfg->{server}->{unix_socket};
 
     my $qparent_session = $kernel->alias_resolve('QueueParent');
     $_[KERNEL]->post( $qparent_session , 'process_new_queue_data', ['shutdown'] )
@@ -282,14 +265,14 @@ sub _init_modules {
     my $self = shift;
 
     MODULES:
-    for my $module ( keys %{$Granite::cfg->{modules}} ){
+    for my $module ( keys %{Granite->cfg->{modules}} ){
 
         # Skip if module not enabled
-        next MODULES unless $Granite::cfg->{modules}->{$module}->{enabled};
+        next MODULES unless Granite->cfg->{modules}->{$module}->{enabled};
 
         # Build package name
         my $package = 'Granite::Modules::' . ucfirst($module)
-                    . '::' . $Granite::cfg->{modules}->{$module}->{name};
+                    . '::' . Granite->cfg->{modules}->{$module}->{name};
 
         $log->debug("Attempting to load module '" . $package . "'") if $debug;
         if ( my $error = load_module( $package ) ){
@@ -298,8 +281,8 @@ sub _init_modules {
         else {
             if ( my $instance = $package->new(
                         name     => $package,
-                        metadata => $Granite::cfg->{modules}->{$module}->{metadata},
-                        hook => $Granite::cfg->{modules}->{$module}->{hook}
+                        metadata => Granite->cfg->{modules}->{$module}->{metadata},
+                        hook => Granite->cfg->{modules}->{$module}->{hook}
                     )
             ){
                 $self->modules->{$module}->{$package} = $instance;

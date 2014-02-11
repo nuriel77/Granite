@@ -41,7 +41,7 @@ has job => (
 
 sub process {
     $self = shift;
-    $Granite::log->debug('{' . $self->job->{job_id} . '} At process');
+    Granite->log->debug('{' . $self->job->{job_id} . '} At process');
     $_[HEAP]->{worker} =  POE::Wheel::Run->new(
         Program     => \&_in_session,
     ) or die "$0: can't POE::Wheel::Run->new";
@@ -62,7 +62,7 @@ sub _in_session {
     # =======
     $poe_kernel->stop();
 
-    $Granite::log->debug('{' . $job->{job_id} . '} At _in_session with PID ' . $$ );
+    Granite->log->debug('{' . $job->{job_id} . '} At _in_session with PID ' . $$ );
 
     POE::Session->create
     (
@@ -94,7 +94,7 @@ sub _in_session {
             _stop             => \&_leave,
         },
         heap => { job => $job },
-        options => { trace => $Granite::trace, debug => $Granite::debug },
+        options => { trace => $Granite::trace, debug => Granite->debug },
     );
 
     $poe_kernel->run();
@@ -110,7 +110,7 @@ sub _in_session {
 
 sub _init {
     my ( $kernel, $heap ) = @_[ KERNEL, HEAP ];
-    $Granite::log->debug('{' . $heap->{job}->{job_id} . '} At _init');
+    Granite->log->debug('{' . $heap->{job}->{job_id} . '} At _init');
     $kernel->post($_[SESSION],'resources_search');
 }
 
@@ -122,7 +122,7 @@ sub _init {
 
 sub _failed_setup {
     my ( $kernel, $heap ) = @_[ KERNEL, HEAP ];
-    $Granite::log->debug('{' . $heap->{job}->{job_id} . '} At setup failure');
+    Granite->log->debug('{' . $heap->{job}->{job_id} . '} At setup failure');
 }
 
 =head2 L<STATE RESOURCES> - Resources state
@@ -135,7 +135,7 @@ sub _failed_setup {
 
 sub _resources_search {
     my ( $kernel, $heap ) = @_[ KERNEL, HEAP ];
-    $Granite::log->debug('{' . $heap->{job}->{job_id} . '} At _resources_search');
+    Granite->log->debug('{' . $heap->{job}->{job_id} . '} At _resources_search');
     unless ( 1 ) {
         $kernel->yield('{' . $heap->{job}->{job_id} . '} resources_failure');
     }
@@ -152,7 +152,7 @@ sub _resources_search {
 
 sub _resouces_success {
     my ( $kernel, $heap ) = @_[ KERNEL, HEAP ];
-    $Granite::log->debug('{' . $heap->{job}->{job_id} . '} At _resources_success');
+    Granite->log->debug('{' . $heap->{job}->{job_id} . '} At _resources_success');
     $kernel->yield('spawn_instances');
 }
 
@@ -164,7 +164,7 @@ sub _resouces_success {
 
 sub _resources_failure {
     my ( $kernel, $heap ) = @_[ KERNEL, HEAP ];
-    $Granite::log->debug('{' . $heap->{job}->{job_id} . '} At resouces failure');
+    Granite->log->debug('{' . $heap->{job}->{job_id} . '} At resouces failure');
 }
 
 =head2 L<STATE SPAWN> - Spawn instance(s) state: request resources from cloud
@@ -193,7 +193,7 @@ sub _spawn_instances {
 
 sub _spawn_success {
     my ( $kernel, $heap ) = @_[ KERNEL, HEAP ];
-    $Granite::log->debug('{' . $heap->{job}->{job_id} . '} At _spawn_success');
+    Granite->log->debug('{' . $heap->{job}->{job_id} . '} At _spawn_success');
     $kernel->yield('job_submit');
 }
 
@@ -252,7 +252,7 @@ sub _job_failure {}
 
 sub _job_complete {
     my ( $kernel, $heap ) = @_[ KERNEL, HEAP ];
-    $Granite::log->debug('{' . $heap->{job}->{job_id} . '} At _job_complete');
+    Granite->log->debug('{' . $heap->{job}->{job_id} . '} At _job_complete');
     $kernel->yield('cleanup');
 }
 
@@ -276,7 +276,7 @@ sub _cleanup {
 
 sub _leave {
     my ( $kernel, $heap ) = @_[ KERNEL, HEAP ];
-    $Granite::log->debug('{' . $heap->{job}->{job_id} . '} At _leave with PID ' . $$ );
+    Granite->log->debug('{' . $heap->{job}->{job_id} . '} At _leave with PID ' . $$ );
 }
 
 =head1 AUTHOR

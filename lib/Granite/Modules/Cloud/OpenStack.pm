@@ -39,7 +39,7 @@ around 'new' => sub {
         service_name => $ENV{NOVA_SERVICE_NAME}         || $self->metadata->{service_name},
         is_rax_auth  => $ENV{NOVA_RAX_AUTH}             || $self->metadata->{rax_auth},
         verify_ssl   => $self->metadata->{verify_ssl}   || 0,
-    ) or $Granite::log->logcroack('Cannot Net::OpenStack::Compute->new: ' . $!);
+    ) or Granite->log->logcroack('Cannot Net::OpenStack::Compute->new: ' . $!);
 
     $self->compute ( $compute );
     return $self;

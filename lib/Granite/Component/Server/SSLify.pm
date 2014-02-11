@@ -14,26 +14,26 @@ sub sslify_options {
     my ( $granite_key, $granite_crt,  $granite_cacrt ) = @_;
 
     for ( $granite_key, $granite_crt ){
-        $Granite::log->logcroak("Cannot find '$_'. Verify existance and permissions.") unless -f $_;
+        Granite->log->logcroak("Cannot find '$_'. Verify existance and permissions.") unless -f $_;
     }
-    if ( $Granite::cfg->{server}->{client_certificate} =~ /yes/i ){
-        $Granite::log->logcroak("Missing CA certificate. Verify existance and permissions.")
+    if ( Granite->cfg->{server}->{client_certificate} =~ /yes/i ){
+        Granite->log->logcroak("Missing CA certificate. Verify existance and permissions.")
             if ( !$granite_cacrt or ! -f $granite_cacrt );
     }
 
     eval { SSLify_Options( $granite_key, $granite_crt ) };
-    $Granite::log->logcroak( "Error setting SSLify_Options with '$granite_key' and '$granite_crt': "
+    Granite->log->logcroak( "Error setting SSLify_Options with '$granite_key' and '$granite_crt': "
                     . $@ . ' Check file permissions.' ) if ($@);
 
     eval { SSLify_Options_NonBlock_ClientCert( SSLify_GetCTX(), $granite_cacrt ); } if $granite_cacrt;
-    $Granite::log->logcroak( 'Error setting SSLify_Options_NonBlock_ClientCert: ' . $@ ) if ($@);
+    Granite->log->logcroak( 'Error setting SSLify_Options_NonBlock_ClientCert: ' . $@ ) if ($@);
 
 }
 
 sub sslify_socket {
     my ( $socket, $granite_crl, $sessionId ) = @_;
 
-    $Granite::log->info('[ ' . $sessionId .' ] Starting up SSLify on socket');
+    Granite->log->info('[ ' . $sessionId .' ] Starting up SSLify on socket');
 
     eval {
         $socket = Server_SSLify_NonBlock(
@@ -41,9 +41,9 @@ sub sslify_socket {
             $socket,
             {
                 clientcertrequest    => $ENV{GRANITE_REQUEST_CLIENT_CERTIFICATE}
-                    || ( $Granite::cfg->{server}->{client_certificate} =~ /yes/i ? 1 : 0 ),
+                    || ( Granite->cfg->{server}->{client_certificate} =~ /yes/i ? 1 : 0 ),
                 noblockbadclientcert => $ENV{GRANITE_VERIFY_CLIENT}
-                    || ( $Granite::cfg->{server}->{verify_client} =~ /yes/i ? 1 : 0 ),
+                    || ( Granite->cfg->{server}->{verify_client} =~ /yes/i ? 1 : 0 ),
                 getserial            => $granite_crl ? 1 : 0,
                 debug                => 0 #$debug
             }
@@ -51,7 +51,7 @@ sub sslify_socket {
     };
 
     if ($@) {
-        $Granite::log->logcluck('_client_accept: SSL Failed:' . $@);
+        Granite->log->logcluck('_client_accept: SSL Failed:' . $@);
         return undef;
     }
     else {
@@ -63,12 +63,12 @@ sub sslify_socket {
 sub verify_client_ssl {
     my ( $kernel, $heap, $wheel_id, $socket, $canwrite, $sessionId ) = @_;
 
-    $Granite::log->info('[ '. $sessionId . ' ]->(' . $wheel_id . ') Verifying Server_SSLify_NonBlock_SSLDone on socket');
+    Granite->log->info('[ '. $sessionId . ' ]->(' . $wheel_id . ') Verifying Server_SSLify_NonBlock_SSLDone on socket');
 
     my $test;
     eval { $test = Server_SSLify_NonBlock_SSLDone($socket); };
     if ( $@ or !$test ){
-        $Granite::log->error('[ ' . $wheel_id . ' ] SSL Handshake failed ' . ( $@ ? $@ : '' ));
+        Granite->log->error('[ ' . $wheel_id . ' ] SSL Handshake failed ' . ( $@ ? $@ : '' ));
         return undef;
     }
 
@@ -79,7 +79,7 @@ sub verify_client_ssl {
         if ( $@ or !$test ) {
             $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] NoClientCertExists\n" )
                 if $canwrite;
-            $Granite::log->error('[ '. $sessionId . ' ]->(' . $wheel_id . ') NoClientCertExists');
+            Granite->log->error('[ '. $sessionId . ' ]->(' . $wheel_id . ') NoClientCertExists');
             return undef;
         }
     }
@@ -90,7 +90,7 @@ sub verify_client_ssl {
         if ( $@ or !$test ){
             $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] ClientCertInvalid\n" )
                 if $canwrite;
-            $Granite::log->error( '[ '. $sessionId . ' ]->(' . $wheel_id . ') ClientCertInvalid ' . ($@ ? $@ : '') );
+            Granite->log->error( '[ '. $sessionId . ' ]->(' . $wheel_id . ') ClientCertInvalid ' . ($@ ? $@ : '') );
             return undef;
         }
 

@@ -493,7 +493,7 @@ sub _get_hypervisor_list {
 
 sub _boot_instance {
     my $cloud = shift;
-    $Granite::log->debug('At _boot_instance');
+    Granite->log->debug('At _boot_instance');
     eval {
         $cloud->boot_instance({
             name => 'test01',

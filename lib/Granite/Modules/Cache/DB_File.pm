@@ -32,11 +32,11 @@ around new => sub {
         return unless exec_hook($self->hook->{prescript}, 'pre');
     }
 
-    my $cache_dir = _verify_dir( $self->{metadata}->{cache_dir} || $Granite::cfg->{main}->{cache_dir} );
+    my $cache_dir = _verify_dir( $self->{metadata}->{cache_dir} || Granite->cfg->{main}->{cache_dir} );
     my $file_name = $self->{metadata}->{file_name};
 
     tie %hash, "DB_File", $cache_dir.'/'.$file_name, O_RDWR|O_CREAT, 0600, $DB_HASH
-        or $Granite::log->logdie( "Cannot open file '".$cache_dir."/jobQueue.db': $!" );
+        or Granite->log->logdie( "Cannot open file '".$cache_dir."/jobQueue.db': $!" );
 
     return $self->cache($self) unless $self->{hook};
 
@@ -113,10 +113,10 @@ sub list { return join "\n", sort keys %hash }
 sub _verify_dir {
     my $cache_dir = shift;
     if ( ! $cache_dir ){
-        $Granite::log->logcroak('Cannot find cache_dir in configuration file');
+        Granite->log->logcroak('Cannot find cache_dir in configuration file');
     }
     elsif ( ! -w $cache_dir ){
-        $Granite::log->logcroak("No write permissions on cache directory '$cache_dir'")
+        Granite->log->logcroak("No write permissions on cache directory '$cache_dir'")
     }
     return $cache_dir;
 }

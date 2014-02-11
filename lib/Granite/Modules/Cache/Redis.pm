@@ -52,7 +52,7 @@ around 'new' => sub {
         alarm 0;
     };
     if ( $@ ){
-        $Granite::log->error('Failed to construct new Redis object: ' . $@);
+        Granite->log->error('Failed to construct new Redis object: ' . $@);
         return undef;
     }
 

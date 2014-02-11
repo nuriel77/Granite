@@ -43,7 +43,7 @@ sub init {
 }
 
 sub _killme {
-    $Granite::log->warn('Termination signal detected. Shutting down gracefully...');
+    Granite->log->warn('Termination signal detected. Shutting down gracefully...');
     my $qparent_session = $kernel->alias_resolve('QueueParent');
     if ( $qparent_session ){
         $kernel->post( $qparent_session , 'process_new_queue_data', ['shutdown'] );
@@ -57,12 +57,12 @@ sub _killme {
 sub _wait_for_event {
     my $cache = $_[ARG0];
 
-    $Granite::log->debug('[ ' . $_[SESSION]->ID . ' ] Listening for new events');
+    Granite->log->debug('[ ' . $_[SESSION]->ID . ' ] Listening for new events');
     my ( $ok, $args ) = $_[SESSION]->wait('process_new_queue_data');
     if ( $ok ){        
-        $Granite::log->info('[ ' . $_[SESSION]->ID . " ] 'process_new_queue_data' event triggered");
+        Granite->log->info('[ ' . $_[SESSION]->ID . " ] 'process_new_queue_data' event triggered");
         if ( $args->[0] eq 'shutdown' ){
-            $Granite::log->info('[ ' . $_[SESSION]->ID . " ] 'shutdown' event triggered");
+            Granite->log->info('[ ' . $_[SESSION]->ID . " ] 'shutdown' event triggered");
             my $engine = $kernel->alias_resolve('engine');
             $_[KERNEL]->post($engine, '_stop');
         }
@@ -71,7 +71,7 @@ sub _wait_for_event {
         }
     }
     else {
-        $Granite::log->error('[ ' . $_[SESSION]->ID
+        Granite->log->error('[ ' . $_[SESSION]->ID
                             . " ] 'process_new_queue_data' event"
                             . ' triggered with unknown failure!');
         $_[KERNEL]->delay('event_listener' => 2);
@@ -80,7 +80,7 @@ sub _wait_for_event {
 
 sub _process_queue {
     my ( $heap, $args, $cache ) = @_[ HEAP, ARG0, ARG1 ];
-    ( $log, $debug ) = ( $Granite::log, $Granite::debug );
+    ( $log, $debug ) = ( Granite->log, Granite->debug );
 
     $log->debug('[ ' . $_[SESSION]->ID . ' ] At process_queue' )
         if $debug;
@@ -97,7 +97,7 @@ sub _process_queue {
     # when items are in state complete and
     # being dequeued from pqa.
     if ( !@_queue && defined $cache ){
-        $Granite::log->debug('Reloading active queue from cache backend');
+        Granite->log->debug('Reloading active queue from cache backend');
         _populate_pqa($cache);
         @_queue = $pqa->peek_items( sub { 1; } );
 
@@ -116,7 +116,7 @@ sub _populate_pqa {
     if( ref $keys[0] eq 'HASH' ){
         for ( keys $keys[0] ){
             my $hash = $keys[0]->{$_};
-            $Granite::log->debug('Cache backend has job key ' . $_ );
+            Granite->log->debug('Cache backend has job key ' . $_ );
             my $job = JSON::XS->new->allow_blessed->decode( $hash );
             $pqa->enqueue($job->{priority}, $job);
         }
@@ -125,7 +125,7 @@ sub _populate_pqa {
         for ( @keys ){
             my $hash = $cache->get($_);
             next unless $hash;
-            $Granite::log->debug('Cache backend has job key ' . $_ );
+            Granite->log->debug('Cache backend has job key ' . $_ );
             my $job = JSON::XS->new->allow_blessed->decode( $hash );
             $pqa->enqueue($job->{priority}, $job);
         }
@@ -148,13 +148,13 @@ sub _enqueue {
                     my $enc = eval { JSON::XS->new->allow_blessed->encode( $job ) };
                     $cache->set( 'job_'.$job->{job_id} => $enc )
                         unless $@;
-                    $Granite::log->error('{'.$job->{job_id}.'} Failed to write to cache backend: ' . $@ )
+                    Granite->log->error('{'.$job->{job_id}.'} Failed to write to cache backend: ' . $@ )
                         if $@;
                 }
             }
         }
         else {
-            $Granite::log->info('Not enqueueing jobId ' . $job->{job_id} . ': Already in active queue');
+            Granite->log->info('Not enqueueing jobId ' . $job->{job_id} . ': Already in active queue');
         }
     }
 }

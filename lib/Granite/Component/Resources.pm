@@ -105,7 +105,7 @@ sub get_cloud_resources {
 			my $sockets = $cpu_info->count / $cores_per_socket;
 			my $arch = ($cpu_info->identify)[0]->{architecture};
 
-			$Granite::log->debug($resource->{hypervisor_hostname} . ' has '
+			Granite->log->debug($resource->{hypervisor_hostname} . ' has '
 							   . ( $cores_per_socket * $sockets ) . ' cores' );
 
 			$self->resources->{cores} += ($cores_per_socket * $sockets);
@@ -115,7 +115,7 @@ sub get_cloud_resources {
 			my @ns = map { 2 ** $_ } 0 .. ( $cores_per_socket * $sockets ) - 1;
 			my $mask_sum = unpack "%123d*" , pack( "d*", @ns);
 
-			$Granite::log->debug( $resource->{hypervisor_hostname} . " has: "
+			Granite->log->debug( $resource->{hypervisor_hostname} . " has: "
 								. ( join "+", @ns ) . ", sum: " . $mask_sum );
 			
 	    	$resources->{$resource->{id}}->{cpu} = {

@@ -52,7 +52,7 @@ around 'new' => sub {
         alarm 0;
     };
     if ( $@ ){
-        $Granite::log->error('Failed to construct new Granite::Modules::Cache::Memcached::SubClass object: ' . $@);
+        Granite->log->error('Failed to construct new Granite::Modules::Cache::Memcached::SubClass object: ' . $@);
         return undef;
     }
 

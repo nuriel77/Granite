@@ -151,29 +151,29 @@ sub BUILD {
 
     $self = shift;
 
-    $self->port            ( $Granite::cfg->{server}->{port} );
-    $self->bind            ( $Granite::cfg->{server}->{bind} );
-    $self->host_name       ( $Granite::cfg->{server}->{hostname}    );
-    $self->max_clients     ( $Granite::cfg->{server}->{max_clients} );
-    $self->unix_socket     ( $Granite::cfg->{server}->{unix_socket} )
-        if $Granite::cfg->{server}->{unix_socket};
+    $self->port            ( Granite->cfg->{server}->{port} );
+    $self->bind            ( Granite->cfg->{server}->{bind} );
+    $self->host_name       ( Granite->cfg->{server}->{hostname}    );
+    $self->max_clients     ( Granite->cfg->{server}->{max_clients} );
+    $self->unix_socket     ( Granite->cfg->{server}->{unix_socket} )
+        if Granite->cfg->{server}->{unix_socket};
 
-    $granite_crt     = $Granite::cfg->{server}->{cert} ?
-        getcwd.'/'.$Granite::cfg->{server}->{cert} : undef;
-    $granite_key     = $Granite::cfg->{server}->{key} ?
-        getcwd.'/'.$Granite::cfg->{server}->{key} : undef;
-    $granite_cacrt   = $Granite::cfg->{server}->{cacert} ?
-        getcwd.'/'.$Granite::cfg->{server}->{cacert} : undef;
-    $granite_crl     = $Granite::cfg->{server}->{crl} ?
-        getcwd.'/'.$Granite::cfg->{server}->{crl} : undef;
-    $granite_cipher  = $Granite::cfg->{server}->{cipher} 
+    $granite_crt     = Granite->cfg->{server}->{cert} ?
+        getcwd.'/'.Granite->cfg->{server}->{cert} : undef;
+    $granite_key     = Granite->cfg->{server}->{key} ?
+        getcwd.'/'.Granite->cfg->{server}->{key} : undef;
+    $granite_cacrt   = Granite->cfg->{server}->{cacert} ?
+        getcwd.'/'.Granite->cfg->{server}->{cacert} : undef;
+    $granite_crl     = Granite->cfg->{server}->{crl} ?
+        getcwd.'/'.Granite->cfg->{server}->{crl} : undef;
+    $granite_cipher  = Granite->cfg->{server}->{cipher} 
         || 'DHE-RSA-AES256-GCM-SHA384:AES256-SHA';
 
     $ENV{GRANITE_CLIENT_CERTIFICATE}
         = 1 if $ENV{GRANITE_VERIFY_CLIENT};
 
-    $Granite::cfg->{server}->{client_certificate}
-        ||= ( $Granite::cfg->{server}->{verify_client} ? 'yes' : 'no' ); 
+    Granite->cfg->{server}->{client_certificate}
+        ||= ( Granite->cfg->{server}->{verify_client} ? 'yes' : 'no' ); 
 
     return $self;
 };
@@ -187,7 +187,7 @@ sub BUILD {
 
 sub run {
 
-    ( $log, $debug ) = ( $Granite::log, $Granite::debug );
+    ( $log, $debug ) = ( Granite->log, Granite->debug );
     $self = shift;
     my $sessionId  = shift;
 
@@ -196,12 +196,12 @@ sub run {
 
     # Set the ssl disabled variable
     # =============================
-    $disable_ssl = 1 if $ENV{GRANITE_DISABLE_SSL} || $Granite::cfg->{server}->{disable_ssl} =~ /yes/i;
+    $disable_ssl = 1 if $ENV{GRANITE_DISABLE_SSL} || Granite->cfg->{server}->{disable_ssl} =~ /yes/i;
 
     # Display configuration warning
     # =============================
     if ( $self->_has_unix_socket ){
-        if ( $Granite::cfg->{server}->{port} || $Granite::cfg->{server}->{bind} ) {
+        if ( Granite->cfg->{server}->{port} || Granite->cfg->{server}->{bind} ) {
             $log->warn('[ ' . $sessionId . ' ] Warning: Both unix socket and tcp options are configured.'
                       . ' Unix socket takes precedence.');
             $self->_undef_bind;
@@ -583,7 +583,7 @@ sub _verify_client {
     $log->info('[ ' . $_[SESSION]->ID()
             . " ]->($wheel_id) Verifying password\n");
     $input =~ s/\n$|\r//g;
-    if ( $input ne $Granite::cfg->{main}->{auth_token} ){
+    if ( $input ne Granite->cfg->{main}->{auth_token} ){
         $heap->{server}->{$wheel_id}->{wheel}->put(
             "[" . $wheel_id . "] Password authentication failure.\n"
         ) if $canwrite;

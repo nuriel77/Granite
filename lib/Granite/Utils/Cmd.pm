@@ -22,7 +22,7 @@ Execute hook pre/post script
 sub exec_hook {
     my ($hook, $type) = @_;
 
-    $Granite::log->debug('Executing module hook '.$type.'script');
+    Granite->log->debug('Executing module hook '.$type.'script');
 
     my $ret_val = _exec_command(
        $type.'script',
@@ -31,7 +31,7 @@ sub exec_hook {
        $hook->{timeout} || 2,
     );
 
-    $Granite::log->debug(ucfirst($type)."script hook returned '$ret_val'")
+    Granite->log->debug(ucfirst($type)."script hook returned '$ret_val'")
         if $ret_val;
 
     return $ret_val;
@@ -58,7 +58,7 @@ sub _exec_command {
 
     $timeout ||= 2;
 
-    $Granite::log->logdie("Script '$script' not found or not executable")
+    Granite->log->logdie("Script '$script' not found or not executable")
             if ! -f "$script" || ! -x "$script";
 
     my $cmd = $script . ' ' . ( join ' ', @{$args} );
@@ -74,18 +74,18 @@ sub _exec_command {
         # Exit code 1 means - log error, load module, continue.
         # =====================================================
         if ( $error_code == 1 ){
-            $Granite::log->error($msg);
+            Granite->log->error($msg);
         }
         # Exit code 2 means - log error, don't load module, continue.
         # ===========================================================
         elsif ( $error_code == 2 ){
-        	$Granite::log->error($msg);
+        	Granite->log->error($msg);
         	return undef;
         }
         # Exit code3 means - log error and die.
         # =====================================
         elsif ( $error_code == 3 ){
-            $Granite::log->logdie($msg);
+            Granite->log->logdie($msg);
             return undef; # don't think we can reach here
         }
     }

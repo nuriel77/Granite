@@ -21,7 +21,7 @@ BEGIN { $g = Granite->new(); }
 $password = 'system';
 
 # Disable logging
-silence_logger($Granite::log);
+silence_logger(Granite->log);
 
 # Adjust running config for testing purposes
 $g->{cfg}->{server}->{unix_socket} = '/tmp/granited.socket';

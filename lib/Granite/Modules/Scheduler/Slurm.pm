@@ -36,7 +36,7 @@ around 'new' => sub {
     my $slurm_conf = $self->metadata->{config_file};
     $self->scheduler( Slurm::new($slurm_conf) );
 
-    $Granite::log->logcroak( "Slurm error: " . $self->scheduler->strerror() )
+    Granite->log->logcroak( "Slurm error: " . $self->scheduler->strerror() )
         if $self->scheduler->get_errno();
 
     return $self unless $self->hook->{postscript};    

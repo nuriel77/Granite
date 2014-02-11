@@ -20,7 +20,7 @@ around new => sub {
     my $self = $class->$orig(@_);
 	
 	my $api = POE::API::Peek->new()
-		or $Granite::log->logcroack("Unable to create POE::API::Peek object");
+		or Granite->log->logcroack("Unable to create POE::API::Peek object");
 	 
 	$self->_set_api($api);
 	return $self;	
@@ -36,7 +36,7 @@ sub show_sessions_aliases {
         );
     };
     if ( $@ ){
-        $Granite::log->error('Error at ' . __PACKAGE__ . ' line ' . __LINE__ . ': ' . $@);
+        Granite->log->error('Error at ' . __PACKAGE__ . ' line ' . __LINE__ . ': ' . $@);
         return undef;
     }
     return $ret_val;
@@ -52,7 +52,7 @@ sub show_sessions_stats {
         );
     };
     if ( $@ ){
-        $Granite::log->error('Error at ' . __PACKAGE__ . ' line ' . __LINE__ . ': ' . $@);
+        Granite->log->error('Error at ' . __PACKAGE__ . ' line ' . __LINE__ . ': ' . $@);
         return undef;
     }
     return $ret_val;
@@ -63,7 +63,7 @@ sub show_sessions {
 	return undef if !$self->_has_api;
 	my $ret_val = eval { POE::Component::DebugShell::cmd_show_sessions( api => $self->api ); };
     if ( $@ ){
-        $Granite::log->error('Error at ' . __PACKAGE__ . ' line ' . __LINE__ . ': ' . $@);
+        Granite->log->error('Error at ' . __PACKAGE__ . ' line ' . __LINE__ . ': ' . $@);
         return undef;
     }
     return $ret_val;
@@ -75,7 +75,7 @@ sub show_sessions_queue {
 	return undef if !$self->_has_api;
 	my $ret_val = eval { POE::Component::DebugShell::cmd_queue_dump( api => $self->api ); };
     if ( $@ ){
-        $Granite::log->error('Error at ' . __PACKAGE__ . ' line ' . __LINE__ . ': ' . $@);
+        Granite->log->error('Error at ' . __PACKAGE__ . ' line ' . __LINE__ . ': ' . $@);
         return undef;
     }
     return $ret_val;

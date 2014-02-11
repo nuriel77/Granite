@@ -22,7 +22,7 @@ use Data::Dumper;
 #}];
 
 sub init {
-    my $cfg = Config::Any->load_files({ files => [ $Granite::cfg->{main}->{sql_config} ], use_ext => 1 });
+    my $cfg = Config::Any->load_files({ files => [ Granite->cfg->{main}->{sql_config} ], use_ext => 1 });
 
 
 

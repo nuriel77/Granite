@@ -1,14 +1,12 @@
 package Granite;
-use strict;
-use warnings;
-use Sys::Hostname;
-use Carp 'croak';
+use Moose;
+use MooseX::ClassAttribute;
 use Log::Log4perl qw(:easy);
 use Granite::Engine;
+use Granite::Modules::DB;
 use Granite::Utils::ConfigLoader;
 
-use vars qw( $VERSION $cfg $debug $log $trace );
-use strict 'vars';
+use vars qw( $VERSION $trace );
 
 use 5.14.2;
 
@@ -28,68 +26,118 @@ $VERSION = '1.001';
 
   Daemon manager application for Scheduling for HPC in the cloud
 
-=head1 SYNOPSIS
-
-  scripts/granited runs the application, optionally use provided rc init script.
-
-=over
-
-=item *
-
   This application requires Slurm compiled from source code with its perl API,
 
   and a cloud API module (Net::OpenStack::Compute by default)
 
+
+=head1 SYNOPSIS
+
+  scripts/granited runs the application, optionally use provided rc init script.
+
+=head2 CLASS ATTRIBUTES
+
+=over
+
+=item * B<cfg>
+=cut
+
+class_has cfg => (
+    is => 'ro',
+    isa => 'HashRef',
+    default => sub {
+        my $config_file = $ENV{GRANITE_CONFIG} || './conf/granite.conf';
+        Granite::Utils::ConfigLoader::load_app_config($config_file);
+    }
+);
+
+=item * B<log>
+=cut
+
+class_has log => (
+    is => 'ro',
+    isa => 'Object',
+    writer => '_set_log',
+    default => sub {{}},
+    lazy => 1,
+);
+
+=item * B<dbh>
+=cut
+
+class_has dbh => (
+    is => 'ro',
+    isa => 'Object',
+    default => sub { Granite::Modules::DB->new },
+);
+
+=item * B<debug>
+=cut
+
+class_has debug => (
+    is => 'rw',
+    isa => 'Bool',
+    default => $ENV{GRANITE_DEBUG},
+);
+
 =back
 
-=head1 METHODS
+=head2 METHODS MODIFIERS
 
-=head2 L<init()>
+=head4 B<around new>
 
   initializes configuration, logging,
   exit handler, and runs the application.
 
 =cut
 
-sub new {
+#around 'new' => sub {
+#    my $orig = shift;
+#    my $class = shift;
+#    my $self = $class->$orig(@_);
  
     $SIG{INT} = \&QUIT;
     $SIG{__DIE__} = \&DEATH;
 
-    # Load config to $Granite::cfg (global)
+    # Load config to Granite->cfg (global)
     # =====================================
-    my $config_file = $ENV{GRANITE_CONFIG} || './conf/granite.conf';
-    $cfg = Granite::Utils::ConfigLoader::load_app_config($config_file);
+    #my $config_file = $ENV{GRANITE_CONFIG} || './conf/granite.conf';
+    #$cfg = Granite::Utils::ConfigLoader::load_app_config($config_file);
 
-    $debug = $ENV{GRANITE_FOREGROUND} ? $ENV{GRANITE_DEBUG} : $cfg->{main}->{debug};
-    $trace = $ENV{GRANITE_TRACE} || $cfg->{main}->{trace};
+    __PACKAGE__->debug(
+        $ENV{GRANITE_FOREGROUND} ? $ENV{GRANITE_DEBUG} : __PACKAGE__->cfg->{main}->{debug}
+    );
+    $trace = $ENV{GRANITE_TRACE} || __PACKAGE__->cfg->{main}->{trace};
 
     # Load log config
     # ===============
-    my $log_config = $Granite::cfg->{main}->{log_config} || 'conf/granite.conf';
+    my $log_config = __PACKAGE__->cfg->{main}->{log_config} || 'conf/granite.conf';
 
     Log::Log4perl::Config->allow_code(0);
     Log::Log4perl::init($log_config);
-    $log = Log::Log4perl->get_logger(__PACKAGE__);
+    __PACKAGE__->_set_log( Log::Log4perl->get_logger(__PACKAGE__) );
 
-    my $self = {
-        logger => $log,
-        cfg    => $cfg
-    };
-    bless $self, shift;
-}
+#};
+
+=head2 METHODS
+
+=head4 B<init>
+
+  Run Granite's Engine
+
+=cut
 
 sub init {
 
     # Run engine
     # ==========
-    Granite::Engine->new( logger => $log, debug => $debug )->run;
+    Granite::Engine->new()->run;
 
     exit;
 }
 
 sub QUIT {
-    $log->info("Termination signal detected\n");
+    __PACKAGE__->log->info("Termination signal detected\n");
     exit 1;
 }
 
@@ -97,9 +145,11 @@ sub DEATH {
     return unless defined $^S and $^S == 0; # Ignore errors in eval
     my ($error) = @_;
     chomp $error;
-    print "die: $error\n";
+    print STDERR "died: $error\n";
 }
 
+
+__PACKAGE__->meta()->make_immutable();
 
 =head1 AUTHOR
 
