@@ -1,6 +1,5 @@
 package Granite::Engine;
 use Moose;
-use MooseX::MethodAttributes;
 
 use Granite::Engine::Daemonize;
 use Granite::Component::Server;
@@ -146,7 +145,7 @@ has client_privmode => (
 
 =cut
 
-sub run : Local {
+sub run {
     my $self = shift;
     ( $log, $debug ) = ($self->logger, $self->debug);
 
@@ -182,7 +181,7 @@ sub run : Local {
 
 =cut
 
-sub _init : Local {
+sub _init {
     my $self = shift;
 
     $log->debug('At Granite::Engine::init') if $debug;
@@ -248,11 +247,7 @@ sub _init : Local {
 
 =cut
 
-sub _terminate
-        : Global
-        : Does('ACL')
-            AllowedRole('admin')
-{
+sub _terminate {
     my ($heap, $kernel, $sender, $session )
         = @_[ HEAP, KERNEL, SENDER, SESSION ];
 
@@ -283,11 +278,7 @@ sub _terminate
   
 =cut
 
-sub _init_modules
-        : Local
-        : Does('ACL')
-            AllowedRole('admin')
-{
+sub _init_modules {
     my $self = shift;
 
     MODULES:
@@ -315,7 +306,7 @@ sub _init_modules
                 $log->info("Loaded module '" . $package . "' OK");
             }
             else {
-            	$log->error("Failed to load module '" . $package . "'!" );
+            	$log->error("Failed to load module '" . $package . "': $!" );
             }
         }
     }    
@@ -367,7 +358,7 @@ sub _init_modules
 
 =cut
 
-sub child_sessions : Local {
+sub child_sessions {
     my ($heap, $kernel, $operation, $child) = @_[HEAP, KERNEL, ARG0, ARG1];
 
     if ($operation eq 'create' or $operation eq 'gain') {
@@ -392,11 +383,7 @@ sub child_sessions : Local {
 
 =cut
 
-sub _controller
-        : Local
-        : Does('ACL')
-          AllowedRole('admin')
-{
+sub _controller {
     my ($kernel, $heap, $input, $wheel_id) = @_[KERNEL, HEAP, ARG0, ARG1];
 
     my ($cmd, $args) = split(' ', $input);
@@ -464,7 +451,7 @@ sub _controller
 
 =cut
 
-sub handle_default : Local {
+sub handle_default {
     my ($event, $args) = @_[ARG0, ARG1];
     $log->logcroak(
       'Session [ ' . $_[SESSION]->ID .
