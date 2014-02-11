@@ -73,7 +73,7 @@ around 'new' => sub {
 
 =head4 B<get>
 
-  Get a key
+Get a key
 
 =cut
 
@@ -82,16 +82,16 @@ sub get         { shift->cache->get(shift) }
 
 =head4 B<set>
 
-  Set a key/value
+Set a key/value
 
 =cut
 
-sub set         { shift->cache->set( shift => shift ) }
+sub set         { shift->cache->set( (shift) => shift ) }
 
 
 =head4 B<delete>
 
-  Delete a key/value
+Delete a key/value
 
 =cut
 
@@ -100,18 +100,15 @@ sub delete      { shift->cache->del( shift ) }
 
 =head4 B<get_keys>
 
-  Get multiple keys, can use prefix.
+Get multiple keys, can use prefix.
 
 =cut
 
-#sub get_keys    { shift->cache->keys( shift . '*' ) }
-sub get_keys    {
-    warn "ASDSDSDSDSDS @_\n";
-}
+sub get_keys    { shift->cache->keys( shift . '*' ) }
 
 =head4 B<DEMOLISH>
 
-  Moose demolish, break connection to Redis.
+Moose demolish, break connection to Redis.
 
 =cut
 
@@ -125,7 +122,7 @@ __PACKAGE__->meta->make_immutable(inline_constructor => 0);
 
 =head1 AUTHOR
 
-  Nuriel Shem-Tov
+Nuriel Shem-Tov
 
 =cut
 
