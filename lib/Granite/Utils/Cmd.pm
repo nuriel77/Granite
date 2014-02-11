@@ -62,8 +62,23 @@ sub _exec_command {
             if ! -f "$script" || ! -x "$script";
 
     my $cmd = $script . ' ' . ( join ' ', @{$args} );
-    my $output = `$cmd 2>&1`;
-    my $error_code = $? >> 8;
+    my ( $output, $error_code );
+    eval {
+        local $SIG{ALRM} = sub { die "TIMEOUT\n" };
+        alarm $timeout;
+        $output = `$cmd 2>&1`; 
+        $error_code = $? >> 8;
+        alarm 0;
+    };
+    if ( $@ ){
+        if ( $@ eq "TIMEOUT\n" ){
+            Granite->log->error("Script '$script' timed out after $timeout seconds")
+        }
+        else {
+            $output = 'Error: ' . $@;
+            $error_code || 1;
+        }
+    }
 
     # In case of failure
     # ==================
@@ -90,8 +105,10 @@ sub _exec_command {
         }
     }
 
-    chomp($output);
-    return $output;
+    if ( $output ){
+        chomp($output);
+        return $output;
+    }
 }
 
 no Moose;

@@ -1,6 +1,7 @@
 package Granite::Component::Resources;
 use Moose;
 use Sys::Info;
+use Try::Tiny;
 with 'Granite::Component::Resources::CPU';
 use Data::Dumper;
 
@@ -85,6 +86,8 @@ sub get_cloud_resources {
     my $self = shift;
     my $cloud_resources = $self->cloud->get_all_hypervisors;
     my $resources = {};
+
+    my $dbh = Granite::Engine->dbh;
 	
 	my $totals = {
 		cores => 0,
@@ -129,12 +132,27 @@ sub get_cloud_resources {
 	    		mask		=> $mask_sum,
 	    		alloc_mask	=> undef, 
 	    	};
+            try {
+                $dbh->resultset('Resource')->update_or_create({
+                    id                  => $resource->{id},
+                    hostname            => $resource->{hypervisor_hostname},
+                    cpuload             => $cpu_info->load,
+                    sockets             => $sockets,
+                    cores_per_socket    => $cores_per_socket,
+                    alloc_memory        => $resource->{memory_mb} - $resource->{free_ram_mb},
+                    real_memory         => $resource->{memory_mb},
+                    diskspace_free      => $resource->{free_disk_gb},
+                    alloc_cores         => $mask_sum,
+                })
+            }
+            catch { Granite->log->logdie($_) };
+
 	    	$resources->{$resource->{id}}->{updated} = time();
 	    	$self->resources->{hypervisors}->{$resource->{id}} = $resources->{$resource->{id}};
 		}
 	}
 
-	warn Dumper $self->resources;
+	#warn Dumper $self->resources;
 }
 
 # temp method, later to create class

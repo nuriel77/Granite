@@ -1,36 +1,69 @@
 package Granite::Modules::DB;
 use Moose;
+use Try::Tiny;
 use Granite::Schema;
 use Config::Any;
-use Data::Dumper;
+use vars '$connection_info';
 
+=head1 DESCRIPTION
 
-#[{
-#    'conf/sql_connect_info.json' => {
-#        'connect_info' => {
-#            'password' => 'system',
-#            'options' => {
-#                'RaieError' => '1',
-#                'PrintError' => '1'
-#            },
-#            'mysql_enable_utf8' => '1',
-#            'dsn' => 'dbi:mysql:granite;host=localhost',
-#            'AutoCommit' => '1',
-#            'user' => 'granite'
-#        }
-#    }
-#}];
+  Database DBIx::Class schema connector
 
-sub init {
-    my $cfg = Config::Any->load_files({ files => [ Granite->cfg->{main}->{sql_config} ], use_ext => 1 });
+=head1 SYNOPSIS
 
+  Granite::Modules::DB->new->connect;
 
+=head1 ATTRIBUTES
 
+=over
 
+=item * B<schema>
+=cut
 
-#    my $schema = Granite::Schema->connect('');
+has schema => (
+    is => 'ro',
+    isa => 'Object',
+    writer => '_set_schema',
+    clearer => '_unset_schema',
+    predicate => '_has_schema',
+);
+
+=back
+
+=head1 METHODS
+
+=head4 B<connect()>
+
+  Establishes connection to database and returns handle
+
+=cut
+
+sub connect {    
+    my $self = shift;
+    $self->_set_schema ( Granite::Schema->connect( _get_connection_info() ) )
+        unless $self->_has_schema;
 }
 
+=head4 B<_get_connection_info()>
+
+  Load the database connection configuration
+
+=cut
+
+sub _get_connection_info {
+    my $file = Granite->cfg->{main}->{sql_config};
+    my $cfg = Config::Any->load_files({ files => [ $file ], use_ext => 1 });
+    $connection_info = $cfg->[0]->{$file}->{connect_info};    
+}
+
+
+__PACKAGE__->meta->make_immutable(inline_constructor => 0);
+
+=head1 AUTHOR
+
+  Nuriel Shem-Tov
+
+=cut
 
 1;
 

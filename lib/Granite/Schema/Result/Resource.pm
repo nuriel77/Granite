@@ -41,6 +41,13 @@ __PACKAGE__->table("resources");
   is_auto_increment: 1
   is_nullable: 0
 
+=head2 cpuload
+
+  data_type: 'decimal'
+  extra: {unsigned => 1}
+  is_nullable: 0
+  size: [3,1]
+
 =head2 hostname
 
   data_type: 'varchar'
@@ -125,12 +132,6 @@ __PACKAGE__->table("resources");
   data_type: 'integer'
   is_nullable: 0
 
-=head2 created
-
-  data_type: 'datetime'
-  datetime_undef_if_invalid: 1
-  is_nullable: 0
-
 =head2 updated
 
   data_type: 'timestamp'
@@ -148,6 +149,13 @@ __PACKAGE__->table("resources");
 __PACKAGE__->add_columns(
   "id",
   { data_type => "integer", is_auto_increment => 1, is_nullable => 0 },
+  "cpuload",
+  {
+    data_type => "decimal",
+    extra => { unsigned => 1 },
+    is_nullable => 0,
+    size => [3, 1],
+  },
   "hostname",
   { data_type => "varchar", is_nullable => 0, size => 42 },
   "ipv4address",
@@ -184,12 +192,6 @@ __PACKAGE__->add_columns(
   { data_type => "smallint", is_nullable => 0 },
   "last_temp_reading",
   { data_type => "integer", is_nullable => 0 },
-  "created",
-  {
-    data_type => "datetime",
-    datetime_undef_if_invalid => 1,
-    is_nullable => 0,
-  },
   "updated",
   {
     data_type => "timestamp",
@@ -232,9 +234,14 @@ __PACKAGE__->set_primary_key("id");
 __PACKAGE__->add_unique_constraint("hostname", ["hostname", "ipv4address", "ipv6address"]);
 
 
-# Created by DBIx::Class::Schema::Loader v0.07039 @ 2014-02-10 12:32:08
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:3w37UW9kdARmdFRYLaKEyw
+# Created by DBIx::Class::Schema::Loader v0.07039 @ 2014-02-12 00:04:14
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:YixtX9kCtMdKrc6sXzbGAQ
 
+__PACKAGE__->load_components("InflateColumn::DateTime","EncodedColumn","TimeStamp");
+
+__PACKAGE__->add_columns(
+   updated => { data_type => 'datetime',   set_on_create => 1 },
+);
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration
 1;

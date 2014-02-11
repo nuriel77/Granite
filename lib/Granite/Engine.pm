@@ -1,17 +1,14 @@
 package Granite::Engine;
 use Moose;
-
 use Granite::Engine::Daemonize;
 use Granite::Component::Server;
 use Granite::Component::Scheduler::Queue;
 use Granite::Component::Scheduler::Queue::Watcher;
 use Granite::Component::Scheduler::Nodes;
 use Granite::Component::Resources;
-use Granite::Modules::DB;
 with 'Granite::Engine::Logger',
      'Granite::Engine::Controller',
      'Granite::Utils::ModuleLoader';
-
 
 use Cwd 'getcwd';
 use POE;
@@ -84,17 +81,20 @@ has cloud      => (
     default => sub {{}},
 );
 
-=item * L<db> 
+=item * L<dbh>
 =cut
 
-has db        => (
+use MooseX::ClassAttribute;
+
+class_has dbh   => (
     is => 'ro',
     isa => 'Object',
-    writer => '_set_db',
     predicate => '_has_db',
     lazy => 1,
-    default => sub {{}},
+    default => sub { Granite->dbh->connect },
 );
+
+no MooseX::ClassAttribute;
 
 =item * L<cache> 
 =cut
@@ -299,10 +299,8 @@ sub _init_modules {
     $self->_set_cache_obj( $self->modules->{cache} )
         if $self->modules->{cache};
 
-    # Set DB handle
-    # =============
-    $self->_set_db ( Granite::Modules::DB->new() );
-    $self->db->init;
+
+    $self->dbh->resultset('Test')->search({ id => 1 })->count ;
 
     # Set scheduler
     # =============
