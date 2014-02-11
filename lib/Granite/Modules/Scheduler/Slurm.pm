@@ -3,9 +3,9 @@ use strict;
 use warnings;
 use Slurm;
 use Slurm qw(:constant);
-use Carp 'confess';
 use Moose;
-    with 'Granite::Modules::Scheduler';
+    with 'Granite::Modules::Scheduler',
+         'Granite::Utils::Cmd';
 use namespace::autoclean;
 
 around 'new' => sub {
@@ -13,11 +13,26 @@ around 'new' => sub {
     my $class = shift;
     my $self = $class->$orig(@_);
 
+    # Run prescript if exists
+    # =======================
+    if ( $self->_has_hook and $self->hook->{prescript} ){
+        return undef unless exec_hook($self->hook->{prescript}, 'pre');
+    }
+    
     my $slurm_conf = $self->metadata->{config_file};
     $self->scheduler( Slurm::new($slurm_conf) );
-    confess "Slurm error: " . $self->scheduler->strerror() . "\n"
+
+    $Granite::log->logcroak( "Slurm error: " . $self->scheduler->strerror() )
         if $self->scheduler->get_errno();
 
+    return $self unless $self->hook->{postscript};    
+    
+    # Run postscript if exists
+    # ========================
+    if ( $self->hook->{postscript}->{file} ){
+        return undef unless exec_hook($self->hook->{postscript}, 'post');
+    }
+    
     return $self;    
 };
 

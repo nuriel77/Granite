@@ -1,22 +1,28 @@
 package Granite::Engine;
 use Moose;
 use MooseX::MethodAttributes;
+
 use Granite::Engine::Daemonize;
 use Granite::Component::Server;
 use Granite::Component::Scheduler::Queue;
 use Granite::Component::Scheduler::Queue::Watcher;
 use Granite::Component::Scheduler::Nodes;
-use Granite::Component::ResourceManager;
-use Cwd 'getcwd';
-use POE;
-use POE::Kernel { loop => 'POE::XS::Loop::Poll' };
-use POE::Wheel::Run;
-use Data::Dumper;
+use Granite::Component::Resources;
+use Granite::Modules::DB;
 with 'Granite::Engine::Logger',
      'Granite::Engine::Controller',
      'Granite::Utils::ModuleLoader';
 
+
+use Cwd 'getcwd';
+use POE;
+use POE::Kernel { loop => 'POE::XS::Loop::Poll' };
+use POE::Wheel::Run;
+
 use namespace::autoclean;
+
+use Data::Dumper;
+
 use vars qw($log $debug $engine_session);
 
 
@@ -75,6 +81,18 @@ has cloud      => (
     isa => 'Object',
     writer => '_set_cloud',
     predicate => '_has_cloud',
+    lazy => 1,
+    default => sub {{}},
+);
+
+=item * L<db> 
+=cut
+
+has db        => (
+    is => 'ro',
+    isa => 'Object',
+    writer => '_set_db',
+    predicate => '_has_db',
     lazy => 1,
     default => sub {{}},
 );
@@ -274,23 +292,31 @@ sub _init_modules
 
     MODULES:
     for my $module ( keys %{$Granite::cfg->{modules}} ){
+
         # Skip if module not enabled
         next MODULES unless $Granite::cfg->{modules}->{$module}->{enabled};
+
         # Build package name
         my $package = 'Granite::Modules::' . ucfirst($module)
                     . '::' . $Granite::cfg->{modules}->{$module}->{name};
+
         $log->debug("Attempting to load module '" . $package . "'") if $debug;
         if ( my $error = load_module( $package ) ){
             $log->logcroak("Failed to load module '" . $package . "': $error" );
         }
         else {
-            my $instance = $package->new(
-                    name     => $package,
-                    metadata => $Granite::cfg->{modules}->{$module}->{metadata},
-                    hook => $Granite::cfg->{modules}->{$module}->{hook}
-                );
-            $self->modules->{$module}->{$package} = $instance;
-            $log->debug("Loaded module '" . $package . "' OK") if $debug;
+            if ( my $instance = $package->new(
+                        name     => $package,
+                        metadata => $Granite::cfg->{modules}->{$module}->{metadata},
+                        hook => $Granite::cfg->{modules}->{$module}->{hook}
+                    )
+            ){
+                $self->modules->{$module}->{$package} = $instance;
+                $log->info("Loaded module '" . $package . "' OK");
+            }
+            else {
+            	$log->error("Failed to load module '" . $package . "'!" );
+            }
         }
     }    
 
@@ -298,6 +324,11 @@ sub _init_modules
     # =========
     $self->_set_cache_obj( $self->modules->{cache} )
         if $self->modules->{cache};
+
+    # Set DB handle
+    # =============
+    $self->_set_db ( Granite::Modules::DB->new() );
+    $self->db->init;
 
     # Set scheduler
     # =============
@@ -323,11 +354,12 @@ sub _init_modules
         
     # Set ResouceManager
     # ==================
-    $self->_set_rsm( Granite::Component::ResourceManager->new( cloud => $self->cloud ) );
+    $self->_set_rsm( Granite::Component::Resources->new( cloud => $self->cloud ) );
 
     my $resources = $self->rsm->get_cloud_resources;
 
 }
+
 
 =head4 B<child_sessions>
 

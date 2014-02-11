@@ -14,7 +14,8 @@ sub load_app_config {
         confess "Cannot read file '$file': permission denied\n";
     }
 
-    my $config = YAML::Tiny->read( $file );
+    my $config = eval { YAML::Tiny->read( $file ) };
+    confess( "$@\n" ) if $@;
     return $config->[0];
 }
 

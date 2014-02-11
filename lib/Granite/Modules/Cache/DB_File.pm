@@ -1,6 +1,7 @@
 package Granite::Modules::Cache::DB_File;
 use Moose;
-with 'Granite::Modules::Cache';
+with 'Granite::Modules::Cache',
+     'Granite::Utils::Cmd';
 use DB_File;
 use vars qw(%hash);
 
@@ -25,24 +26,28 @@ around new => sub {
     my $class = shift;
     my $self = $class->$orig(@_);
 
+    # Run prescript if exists
+    # =======================
+    if ( $self->_has_hook and $self->hook->{prescript} ){
+        return unless exec_hook($self->hook->{prescript}, 'pre');
+    }
+
     my $cache_dir = _verify_dir( $self->{metadata}->{cache_dir} || $Granite::cfg->{main}->{cache_dir} );
     my $file_name = $self->{metadata}->{file_name};
 
     tie %hash, "DB_File", $cache_dir.'/'.$file_name, O_RDWR|O_CREAT, 0666, $DB_HASH
         or $Granite::log->logdie( "Cannot open file '".$cache_dir."/jobQueue.db': $!" );
 
-    $self->cache($self);
+    return $self->cache($self) unless $self->{hook};
 
-    return $self->cache unless $self->{hook};
-
-    $Granite::log->debug('Executing cache module hook');
-    for my $type ( keys %{$self->{hook}} ){
-        my $ret_val = $self->_exec_hook($type, $self->{hook}->{$type});
-        $Granite::log->debug("$type hook returned '$ret_val'")
-            if $ret_val;
+    # Run postscript if exists
+    # ========================
+    if ($self->hook->{postscript}->{file}){
+        return undef unless exec_hook($self->hook->{postscript}, 'post');   
     }
-
-    return $self->cache;
+    
+    $self->cache($self);
+    return $self;
 };
 
 
@@ -113,43 +118,6 @@ sub _verify_dir {
         $Granite::log->logcroak("No write permissions on cache directory '$cache_dir'")
     }
     return $cache_dir;
-}
-
-=head4 B<_exec_hook>
-
-  Execute hook code/script
-
-=cut
-
-sub _exec_hook {
-    my ( $self, $type, $hook, $timeout ) = @_;
-    $timeout ||= 2;
-    my ( $err, $rc, $output );
-    eval {
-        local $SIG{ALRM} = sub { die "TIMEOUT\n" };
-        alarm $timeout;
-        if ( $type eq 'script' ){
-            die "Script not found or not executable"
-                if ! -f "$hook" || ! -x "$hook";
-            $output = `$hook 2>&1`;
-            $rc = $? >> 8;
-        }
-        elsif ( $type eq 'code' ){
-            $output = eval $hook;
-        }
-        $err = $@;
-        alarm 0;
-    };
-    $err .= $@ if $@;
-    if ( $err || $rc ){
-        $Granite::log->error("Module $type hook code execution failed: "
-                            . $err . ( $rc ? 'exit code ' . $rc : '' )
-                            . ( $output ? ' output: ' . $output : '')
-        );
-        return undef;
-    }
-    chomp($output);
-    return $output;
 }
 
 =head4 B<DEMOLISH>

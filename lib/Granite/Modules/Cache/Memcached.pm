@@ -2,7 +2,8 @@ package Granite::Modules::Cache::Memcached;
 use Moose;
 use Cache::Memcached;
 use Scalar::Util 'looks_like_number';
-with 'Granite::Modules::Cache';
+with 'Granite::Modules::Cache',
+     'Granite::Utils::Cmd';
 use namespace::autoclean;
 
 use constant DEFAULT_EXPIRATION => 2592000; # 30 days
@@ -15,12 +16,20 @@ around 'new' => sub {
     my $class = shift;
     my $self = $class->$orig(@_);
     my %connection_args;
+
     for ( keys %{$self->{metadata}} ){
         next unless $self->{metadata}->{$_};
         $connection_args{$_} = looks_like_number($self->{metadata}->{$_})
             ? $self->{metadata}->{$_}*1
             : $self->{metadata}->{$_}
     }
+    
+    # Run prescript if exists
+    # =======================
+    if ( $self->_has_hook and $self->hook->{prescript} ){
+        return unless exec_hook($self->hook->{prescript}, 'pre');
+    }
+        
     my $memc;
     eval {
         local $SIG{ALRM} = sub { die "TIMEOUT\n" };
@@ -33,17 +42,15 @@ around 'new' => sub {
         return undef;
     }
 
-    $self->cache($memc) if $memc;
-
+    $self->cache($memc) if $memc;   
     return $self unless $self->{hook};
 
-    $Granite::log->debug('Executing cache module hook');
-    for my $type ( keys %{$self->{hook}} ){
-        my $ret_val = $self->_exec_hook($type, $self->{hook}->{$type});
-        $Granite::log->debug("$type hook returned '$ret_val'")
-            if $ret_val;
+    # Run postscript if exists
+    # ========================
+    if ($self->hook->{postscript}->{file}){
+        return undef unless exec_hook($self->hook->{postscript}, 'post');   
     }
-
+    
     return $self;
 };
 

@@ -3,14 +3,14 @@ use Moose::Role;
 
 =head1 DESCRIPTION
 
-  This package provides an interface for Cache backends.
+This package provides an interface for Cache backends.
 
-  The default module is currently DB_File
+The default module is currently DB_File
 
 =head1 SYNOPSIS
 
-  use Moose;
-  with 'Granite::Modules::Cache'
+use Moose;
+with 'Granite::Modules::Cache'
 
 =head1 ATTRIBUTES
 
@@ -25,19 +25,19 @@ has cache      => ( is => 'rw', isa => 'Object', predicate => '_has_cache' );
 =item * B<name>
 =cut
 
-has name       => ( is => 'rw', isa => 'Str', required => 1 );
+has name       => ( is => 'ro', isa => 'Str', required => 1 );
 
 
 =item * B<metadata>
 =cut
 
-has metadata   => ( is => 'rw', isa => 'HashRef', );
+has metadata   => ( is => 'ro', isa => 'HashRef', );
 
 
 =item * B<hook>
 =cut
 
-has hook   => ( is => 'rw', isa => 'Any', );
+has hook   => ( is => 'ro', isa => 'HashRef', predicate => '_has_hook' );
 
 
 =back
