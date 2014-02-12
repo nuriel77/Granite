@@ -69,16 +69,19 @@ __PACKAGE__->table("resources");
 =head2 sockets
 
   data_type: 'tinyint'
+  extra: {unsigned => 1}
   is_nullable: 0
 
 =head2 cores_per_socket
 
   data_type: 'smallint'
+  extra: {unsigned => 1}
   is_nullable: 0
 
 =head2 threads_per_core
 
   data_type: 'smallint'
+  extra: {unsigned => 1}
   is_nullable: 0
 
 =head2 os
@@ -88,27 +91,31 @@ __PACKAGE__->table("resources");
 
 =head2 real_memory
 
-  data_type: 'mediumint'
+  data_type: 'bigint'
+  extra: {unsigned => 1}
   is_nullable: 0
 
 =head2 alloc_memory
 
-  data_type: 'mediumint'
+  data_type: 'bigint'
+  extra: {unsigned => 1}
   is_nullable: 0
 
 =head2 alloc_cores
 
-  data_type: 'bigint'
+  data_type: 'mediumint'
   is_nullable: 0
 
 =head2 diskspace_free
 
-  data_type: 'mediumint'
+  data_type: 'bigint'
+  extra: {unsigned => 1}
   is_nullable: 0
 
 =head2 tmpdiskspace_free
 
-  data_type: 'mediumint'
+  data_type: 'bigint'
+  extra: {unsigned => 1}
   is_nullable: 0
 
 =head2 weight
@@ -129,7 +136,7 @@ __PACKAGE__->table("resources");
 
 =head2 last_temp_reading
 
-  data_type: 'integer'
+  data_type: 'smallint'
   is_nullable: 0
 
 =head2 updated
@@ -163,23 +170,23 @@ __PACKAGE__->add_columns(
   "ipv6address",
   { data_type => "varchar", is_nullable => 0, size => 128 },
   "sockets",
-  { data_type => "tinyint", is_nullable => 0 },
+  { data_type => "tinyint", extra => { unsigned => 1 }, is_nullable => 0 },
   "cores_per_socket",
-  { data_type => "smallint", is_nullable => 0 },
+  { data_type => "smallint", extra => { unsigned => 1 }, is_nullable => 0 },
   "threads_per_core",
-  { data_type => "smallint", is_nullable => 0 },
+  { data_type => "smallint", extra => { unsigned => 1 }, is_nullable => 0 },
   "os",
   { data_type => "tinytext", is_nullable => 0 },
   "real_memory",
-  { data_type => "mediumint", is_nullable => 0 },
+  { data_type => "bigint", extra => { unsigned => 1 }, is_nullable => 0 },
   "alloc_memory",
-  { data_type => "mediumint", is_nullable => 0 },
+  { data_type => "bigint", extra => { unsigned => 1 }, is_nullable => 0 },
   "alloc_cores",
-  { data_type => "bigint", is_nullable => 0 },
+  { data_type => "mediumint", is_nullable => 0 },
   "diskspace_free",
-  { data_type => "mediumint", is_nullable => 0 },
+  { data_type => "bigint", extra => { unsigned => 1 }, is_nullable => 0 },
   "tmpdiskspace_free",
-  { data_type => "mediumint", is_nullable => 0 },
+  { data_type => "bigint", extra => { unsigned => 1 }, is_nullable => 0 },
   "weight",
   { data_type => "smallint", is_nullable => 0 },
   "boottime",
@@ -191,7 +198,7 @@ __PACKAGE__->add_columns(
   "last_watts_reading",
   { data_type => "smallint", is_nullable => 0 },
   "last_temp_reading",
-  { data_type => "integer", is_nullable => 0 },
+  { data_type => "smallint", is_nullable => 0 },
   "updated",
   {
     data_type => "timestamp",
@@ -234,8 +241,8 @@ __PACKAGE__->set_primary_key("id");
 __PACKAGE__->add_unique_constraint("hostname", ["hostname", "ipv4address", "ipv6address"]);
 
 
-# Created by DBIx::Class::Schema::Loader v0.07039 @ 2014-02-12 00:04:14
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:YixtX9kCtMdKrc6sXzbGAQ
+# Created by DBIx::Class::Schema::Loader v0.07039 @ 2014-02-12 14:58:54
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:sbEmoJ0xoaK69ac1JcFNVQ
 
 __PACKAGE__->load_components("InflateColumn::DateTime","EncodedColumn","TimeStamp");
 

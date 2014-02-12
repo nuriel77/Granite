@@ -16,9 +16,8 @@ sub init {
     my ( $heap, $log, $debug ) = @_[HEAP, ARG0,ARG1 ];
 
     my $cache_api;
-    my $engine_heap = $kernel->alias_resolve('engine')->get_heap();
-    if ( $engine_heap->{self}->_has_cache_obj ){
-        my $cache_obj = $engine_heap->{self}->{modules}->{cache};
+    if ( Granite::Engine->_has_cache_obj ){
+    	my $cache_obj = Granite::Engine->cache;
         $cache_api = $cache_obj->{(keys %{$cache_obj})[0]};
     }
 

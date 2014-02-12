@@ -34,57 +34,15 @@ use vars qw($log $debug $engine_session);
 
   (Loaded by granite main script)
 
-=head2 ATTRIBUTES
+=head2 CLASS ATTRIBUTES
 
 =over
-
-=item * L<modules> 
-=cut
-
-has modules    => (
-    is => 'rw',
-    isa => 'HashRef',
-    default => sub {{}},
-    lazy => 1,
-);
-
-=item * L<resources> 
-=cut
-
-has rsm        => (
-    is => 'ro',
-    isa => 'Object',
-    writer => '_set_rsm',
-    default => sub {{}},
-    lazy => 1,
-);
-
-=item * L<scheduler> 
-=cut
-
-has scheduler  => (
-    is => 'rw',
-    isa => 'HashRef',
-    lazy => 1,
-    default => sub {{}},
-);
-
-=item * L<cloud> 
-=cut
-
-has cloud      => (
-    is => 'ro',
-    isa => 'Object',
-    writer => '_set_cloud',
-    predicate => '_has_cloud',
-    lazy => 1,
-    default => sub {{}},
-);
-
-=item * L<dbh>
 =cut
 
 use MooseX::ClassAttribute;
+
+=item * L<dbh>
+=cut
 
 class_has dbh   => (
     is => 'ro',
@@ -94,12 +52,52 @@ class_has dbh   => (
     default => sub { Granite->dbh->connect },
 );
 
-no MooseX::ClassAttribute;
+=item * L<modules> 
+=cut
+
+class_has modules    => (
+    is => 'rw',
+    isa => 'HashRef',
+    default => sub {{}},
+    lazy => 1,
+);
+
+=item * L<resources> 
+=cut
+
+class_has rsm        => (
+    is => 'ro',
+    isa => 'Object',
+    default => sub { Granite::Component::Resources->new },
+    lazy => 1,
+);
+
+=item * L<scheduler> 
+=cut
+
+class_has scheduler  => (
+    is => 'rw',
+    isa => 'HashRef',
+    lazy => 1,
+    default => sub {{}},
+);
+
+=item * L<cloud> 
+=cut
+
+class_has cloud      => (
+    is => 'ro',
+    isa => 'Object',
+    writer => '_set_cloud',
+    predicate => '_has_cloud',
+    lazy => 1,
+    default => sub {{}},
+);
 
 =item * L<cache> 
 =cut
 
-has cache      => (
+class_has cache      => (
     is => 'ro',
     isa => 'HashRef',
     writer => '_set_cache_obj',
@@ -107,6 +105,14 @@ has cache      => (
     lazy => 1,
     default => sub {{}},
 );
+
+no MooseX::ClassAttribute;
+
+=back
+
+=head2 ATTRIBUTES
+
+=over
 
 =item * L<client_privmode>
 =cut
@@ -299,9 +305,6 @@ sub _init_modules {
     $self->_set_cache_obj( $self->modules->{cache} )
         if $self->modules->{cache};
 
-
-    $self->dbh->resultset('Test')->search({ id => 1 })->count ;
-
     # Set scheduler
     # =============
     $self->scheduler ( $self->modules->{scheduler} )
@@ -323,12 +326,20 @@ sub _init_modules {
     # =========
     $self->_set_cloud ( $self->modules->{cloud}->{ (keys %{$self->modules->{cloud}})[0] } )
         && delete $self->modules->{cloud};
-        
-    # Set ResouceManager
-    # ==================
-    $self->_set_rsm( Granite::Component::Resources->new( cloud => $self->cloud ) );
-
-    my $resources = $self->rsm->get_cloud_resources;
+     
+    #my $resources = $self->rsm->get_cloud_resources;
+    #warn Dumper $resources;
+    my $resources = $self->rsm->test_request(
+        {
+       	    cores   => 2, 
+            socket_bind => 0, 
+            affinity => '0-1',
+            memory => 2048 * ( 1024**2 ), 
+            runtime => 3600,
+            deadline => 1393523717, # (Thu Feb 27 18:55:17)
+            reservation => 1392523717, # (Sun Feb 16 05:08:37)
+        }
+    );
 
 }
 

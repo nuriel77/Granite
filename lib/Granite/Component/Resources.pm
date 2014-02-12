@@ -1,5 +1,6 @@
 package Granite::Component::Resources;
 use Moose;
+with 'Granite::Utils::ModuleLoader';
 use Try::Tiny;
 use namespace::autoclean;
 use Data::Dumper;
@@ -46,10 +47,10 @@ has roles => (
 =item * L<cloud>
 =cut
 
-has cloud => (
-    is => 'ro',
-    isa => 'Object',
-);
+#has cloud => (
+#    is => 'ro',
+#    isa => 'Object',
+#);
 
 =item * L<resources>
 =cut
@@ -67,27 +68,6 @@ has resources => (
 );
 
 =back
-
-=head1 METHOD MODIFIERS
-
-  around 'new' => override default constructor, set traits
-
-=cut
-
-#around 'new' => sub {
-#    my $orig = shift;
-#    my $class = shift;
-#    my $self = $class->$orig(@_);
-#
-# 
-#    $self->roles(
-#       $self->new_with_traits(
-#            traits         => [ qw( CPU Memory ) ],
-#        )
-#    );
-#    
-#    return $self;
-#};
 
 =head1 METHODS
 
@@ -127,7 +107,7 @@ has resources => (
 	
 sub get_cloud_resources {
     my $self = shift;
-    my $cloud_resources = $self->cloud->get_all_hypervisors;
+    my $cloud_resources = Granite::Engine->cloud->get_all_hypervisors;
     my $resources = {};
 
     $self->_set_roles (
@@ -175,6 +155,12 @@ sub get_cloud_resources {
 	    		mask		=> $mask_sum,
 	    		alloc_mask	=> undef, 
 	    	};
+            $resources->{$resource->{id}}->{memory} = {
+            	total_mem => $self->roles->total_mem,
+            	free_mem => $self->roles->free_mem,
+            	total_swap => $self->roles->total_swap,
+            	free_swap => $self->roles->free_swap,
+            };
             try {
                 $dbh->resultset('Resource')->update_or_create({
                     id                  => $resource->{id},
@@ -182,8 +168,8 @@ sub get_cloud_resources {
                     cpuload             => $cpu_info->load,
                     sockets             => $sockets,
                     cores_per_socket    => $cores_per_socket,
-                    alloc_memory        => $resource->{memory_mb} - $resource->{free_ram_mb},
-                    real_memory         => $resource->{memory_mb},
+                    alloc_memory        => $self->roles->total_mem - $self->roles->free_mem,
+                    real_memory         => $self->roles->total_mem,
                     diskspace_free      => $resource->{free_disk_gb},
                     alloc_cores         => $mask_sum,
                 })
@@ -195,7 +181,36 @@ sub get_cloud_resources {
 		}
 	}
 
-	warn Dumper $self->resources;
+	return $self->resources;
+}
+
+#
+# Example $request:
+# $request = {
+#   cores   => ..., # number 0..[max_cores]
+#	socket_bind => ..., # number of socket (0 or 1...) -> user can specify this if there's only socket requirement (not core)
+#   affinity => ..., # typical affinity notation (3-7,1 etc...) . Affinity takes precedence over socket_bind parameter. 
+#                      If user specifies socket_bind that means that if we could not satisfy affinity, we try to satisfy socket_bind
+#   memory => ..., # total required memory
+#   runtime => ...,
+#   deadline => ...,
+#   reservation => ...,
+#}
+sub test_request {
+    my ( $self, $request ) = @_;
+
+    warn Dumper $request;        
+    return undef if !$request || ref $request ne 'HASH'; 
+    
+    # For module ... check if has pluggable module (filter module)
+    # .... found module affinity....
+    if ( my $error = load_module ('Granite::Modules::Resources::CPU::Affinity') ){
+        Granite->log->logdie( "LOADER FAILURE: '$error'" );
+    }
+    else {
+        my $filter = Granite::Modules::Resources::CPU::Affinity->new( input => $request)->run;
+    }
+    
 }
 
 # temp method, later to create class

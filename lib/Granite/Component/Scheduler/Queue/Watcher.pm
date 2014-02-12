@@ -5,6 +5,8 @@ use Data::Dumper;
 use POE;
 use vars qw($log $debug $scheduler $queue);
 
+our $child_max = 1;
+
 sub run {
     ( $log, $debug )      = @_[ ARG0..ARG2 ];
     my ( $kernel, $heap ) = @_[ KERNEL, HEAP ];

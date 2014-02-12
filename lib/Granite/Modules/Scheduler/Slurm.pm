@@ -1,6 +1,4 @@
 package Granite::Modules::Scheduler::Slurm;
-use strict;
-use warnings;
 use Slurm;
 use Slurm qw(:constant);
 use Moose;
