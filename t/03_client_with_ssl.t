@@ -83,43 +83,46 @@ my $run = sub {
                 $client_connections++;
                 my ($err);
                 eval {
-                  $socket = IO::Socket::SSL->new(
-                    # where to connect
-                    PeerHost => $host,
-                    PeerPort => $port,
-
-                    # Client certificate/key
-                    SSL_cert_file => $crt,
-                    SSL_key_file => $key,
-
-                    # certificate verification
-                    #SSL_ca_path => $capath,
-                    #SSL_ca_file => $cacert,
-                    #SSL_verify_mode => SSL_VERIFY_PEER,
-                    SSL_use_cert => 1,
-                    SSL_verify_mode => SSL_VERIFY_NONE,
-
-                    # easy hostname verification
-                    SSL_verifycn_name => $servername,
-                    #SSL_verifycn_scheme => 'http',
-
-                    # SNI support
-                    SSL_hostname => $servername,
-                  );
-                  $err = $SSL_ERROR if $SSL_ERROR;
+                    local $SIG{ALRM} = sub { die "TIMEOUT\n" };
+                    alarm 2;
+                    $socket = IO::Socket::SSL->new(
+                        # where to connect
+                        PeerHost => $host,
+                        PeerPort => $port,
+    
+                        # Client certificate/key
+                        SSL_cert_file => $crt,
+                        SSL_key_file => $key,
+    
+                        # certificate verification
+                        #SSL_ca_path => $capath,
+                        #SSL_ca_file => $cacert,
+                        #SSL_verify_mode => SSL_VERIFY_PEER,
+                        SSL_use_cert => 1,
+                        SSL_verify_mode => SSL_VERIFY_NONE,
+    
+                        # easy hostname verification
+                        SSL_verifycn_name => $servername,
+                        #SSL_verifycn_scheme => 'http',
+    
+                        # SNI support
+                        SSL_hostname => $servername,
+                    );
+                    $err = $SSL_ERROR if $SSL_ERROR;
+                    alarm 0;
                 };
 
                 $err ||= $SSL_ERROR || $@;
 
-                if ( $socket and ref $socket eq 'IO::Socket::SSL' ){
-                    $_[HEAP]->{clients}->{$_[SESSION]->ID()}->{socket} = $socket;
-                    $_[KERNEL]->yield('start_io_socket_ssl', $socket);
-                    return;
-                }
-
                 if ($err){
                     diag ( $err );
                     &DEAD;
+                    return;
+                }
+
+                if ( $socket and ref $socket eq 'IO::Socket::SSL' ){
+                    $_[HEAP]->{clients}->{$_[SESSION]->ID()}->{socket} = $socket;
+                    $_[KERNEL]->yield('start_io_socket_ssl', $socket);
                     return;
                 }
                 

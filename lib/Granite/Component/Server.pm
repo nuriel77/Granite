@@ -1,4 +1,6 @@
 package Granite::Component::Server;
+use Moose;
+use Moose::Util::TypeConstraints;
 use Socket;
 use Cwd 'getcwd';
 use File::Basename 'dirname';
@@ -13,10 +15,8 @@ use POE qw/
     Wheel::ReadWrite
 /;
 
-use Moose::Util::TypeConstraints;
-use Moose;
-    with 'Granite::Component::Server::SSLify';
 use namespace::autoclean;
+
 
 use vars
     qw( $log $granite_key $granite_crt $debug $client_filters
@@ -40,6 +40,21 @@ use vars
   SessionId is the Id of the caller
 
   See configuration file for more details
+
+=head2 TRAITS
+
+  Load roles belonging to this package
+
+=cut
+
+with 'MooseX::Traits';
+
+has '+_trait_namespace' => (
+    default => sub {
+        my ( $P, $SP ) = __PACKAGE__ =~ /^(\w+)::(.*)$/;
+        return $P . '::TraitFor::' . $SP;
+    }
+);
 
 =head2 CONSTRAINTS
 
@@ -72,6 +87,16 @@ subtype 'BindAddress',
 =head2 ATTRIBUTES
 
 =over
+
+=item * L<roles>
+=cut
+
+has roles => (
+    is => 'ro',
+    isa => 'Object',
+    writer => '_set_roles',
+    predicate => '_has_roles',    
+);
 
 =item * L<port> 
 =cut
@@ -186,10 +211,15 @@ sub BUILD {
 =cut
 
 sub run {
-
     ( $log, $debug ) = ( Granite->log, Granite->debug );
     $self = shift;
     my $sessionId  = shift;
+
+    $self->_set_roles (
+        $self->new_with_traits(
+            traits         => [ qw( SSLify ) ],
+        )
+    ) unless $self->_has_roles;
 
     $log->debug('[ ' . $sessionId . ' ] Initializing Granite::Component::Server')
         if $debug;
@@ -221,7 +251,7 @@ sub run {
         $log->logcroak("Missing key file definition")         unless $granite_key;
 
         $log->debug('[ ' . $sessionId . ' ] Setting SSLify options') if $debug;
-        sslify_options( $granite_key, $granite_crt, $granite_cacrt );
+        $self->roles->sslify_options( $granite_key, $granite_crt, $granite_cacrt );
     }
 
     # Check access to unix socket
@@ -497,7 +527,7 @@ sub _client_accept {
     # SSLify the new socket if ssl enabled
     # ====================================
     unless ( $disable_ssl or $self->_has_unix_socket ){
-        unless ( $socket = sslify_socket( $socket, $granite_crl, $_[SESSION]->ID()) ){
+        unless ( $socket = $self->roles->sslify_socket( $socket, $granite_crl, $_[SESSION]->ID()) ){
             delete $heap->{server}->{$wheel_id}->{wheel};
             return undef;
         }
@@ -570,7 +600,7 @@ sub _verify_client {
             # Verify client ssl
             # =================
             unless (
-                verify_client_ssl(
+                $self->roles->verify_client_ssl(
                     $kernel, $heap, $wheel_id, $socket, $canwrite, $_[SESSION]->ID()
                 )
             ){
@@ -666,7 +696,7 @@ sub _get_remote_address {
         ($remote_port, $addr) =
             unpack_sockaddr_in(
                 getpeername (
-                    $disable_ssl ? $socket : sslify_getsocket ($socket)
+                    $disable_ssl ? $socket : $self->roles->sslify_getsocket ($socket)                    
                 )
             );
     };

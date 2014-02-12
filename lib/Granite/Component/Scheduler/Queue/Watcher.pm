@@ -1,11 +1,9 @@
 package Granite::Component::Scheduler::Queue::Watcher;
 use strict;
 use warnings;
-use Data::Dumper::Concise;
+use Data::Dumper;
 use POE;
 use vars qw($log $debug $scheduler $queue);
-
-our $child_max = 1;
 
 sub run {
     ( $log, $debug )      = @_[ ARG0..ARG2 ];

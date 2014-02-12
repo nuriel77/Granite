@@ -1,4 +1,4 @@
-package Granite::Component::Server::SSLify;
+package Granite::TraitFor::Component::Server::SSLify;
 use POE::Component::SSLify qw( SSLify_Options SSLify_GetCTX SSLify_GetCipher SSLify_GetSocket);
 use POE::Component::SSLify::NonBlock qw(
     Server_SSLify_NonBlock
@@ -9,8 +9,28 @@ use POE::Component::SSLify::NonBlock qw(
     Server_SSLify_NonBlock_SSLDone );
 use Moose::Role;
 
-sub sslify_options {
+=head1 DESCRIPTION
 
+  Socket SSLifier for POE SocketFactory
+
+=head1 SYNOPSIS
+
+  package MyPackage;
+  use Moose;
+  with 'Granite::TraitFor::Component::Server::SSLify';
+  
+  Or load via MooseX::Traits as done by Granite::Component::Server  
+
+=head2 METHODS
+
+=head4 B<sslify_options>
+
+  Set global server SSL ctx options 
+
+=cut
+
+sub sslify_options {
+    shift;
     my ( $granite_key, $granite_crt,  $granite_cacrt ) = @_;
 
     for ( $granite_key, $granite_crt ){
@@ -30,7 +50,14 @@ sub sslify_options {
 
 }
 
+=head4 B<sslify_socket>
+
+  SSLify a provided socket
+  
+=cut 
+
 sub sslify_socket {
+	shift;
     my ( $socket, $granite_crl, $sessionId ) = @_;
 
     Granite->log->info('[ ' . $sessionId .' ] Starting up SSLify on socket');
@@ -60,7 +87,14 @@ sub sslify_socket {
 
 }
 
+=head4 B<verify_client_ssl>
+
+  Verify client's SSL cerificate
+
+=cut
+
 sub verify_client_ssl {
+    shift;
     my ( $kernel, $heap, $wheel_id, $socket, $canwrite, $sessionId ) = @_;
 
     Granite->log->info('[ '. $sessionId . ' ]->(' . $wheel_id . ') Verifying Server_SSLify_NonBlock_SSLDone on socket');
@@ -68,11 +102,12 @@ sub verify_client_ssl {
     my $test;
     eval { $test = Server_SSLify_NonBlock_SSLDone($socket); };
     if ( $@ or !$test ){
-        Granite->log->error('[ ' . $wheel_id . ' ] SSL Handshake failed ' . ( $@ ? $@ : '' ));
+        Granite->log->error('[ ' . $wheel_id . ' ] SSL Handshake failed: ' . $@ );
         return undef;
     }
 
     # Check certificate provided by client
+    # ====================================
     if ( $ENV{GRANITE_CLIENT_CERTIFICATE} ){
         my $test;
         eval { $test = Server_SSLify_NonBlock_ClientCertificateExists($socket); };
@@ -84,13 +119,14 @@ sub verify_client_ssl {
         }
     }
     # check certificate valid
+    # =======================
     if ( $ENV{GRANITE_VERIFY_CLIENT} ){
         my $test;
         eval { $test = Server_SSLify_NonBlock_ClientCertIsValid($socket); };
         if ( $@ or !$test ){
             $heap->{server}->{$wheel_id}->{wheel}->put( "[" . $wheel_id . "] ClientCertInvalid\n" )
                 if $canwrite;
-            Granite->log->error( '[ '. $sessionId . ' ]->(' . $wheel_id . ') ClientCertInvalid ' . ($@ ? $@ : '') );
+            Granite->log->error( '[ '. $sessionId . ' ]->(' . $wheel_id . ') ClientCertInvalid: ' . $@ );
             return undef;
         }
 
@@ -110,10 +146,20 @@ sub verify_client_ssl {
 
 }
 
-sub sslify_getsocket { SSLify_GetSocket( shift ) }
+=head4 B<sslify_getsocket>
 
+  Get the socket from SSLify
+  
+=cut
+
+sub sslify_getsocket { shift; SSLify_GetSocket( shift ) }
 
 no Moose;
 
+=head1 AUTHOR
+
+  Nuriel Shem-Tov
+  
+=cut
 
 1;
