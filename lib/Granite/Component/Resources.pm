@@ -1,8 +1,7 @@
 package Granite::Component::Resources;
 use Moose;
-use Sys::Info;
 use Try::Tiny;
-with 'Granite::Component::Resources::CPU';
+use namespace::autoclean;
 use Data::Dumper;
 
 =head1 DESCRIPTION
@@ -16,20 +15,43 @@ use Data::Dumper;
   my $resources = $rsm->get_cloud_resources();
   ...
 
+=head1 TRAITS
+
+  Use traits namespace to load package roles
+  
+=cut 
+
+with 'MooseX::Traits';
+has '+_trait_namespace' => (
+    default => sub {
+        my ( $P, $SP ) = __PACKAGE__ =~ /^(\w+)::(.*)$/;
+        return $P . '::TraitFor::' . $SP;
+    }
+);
+
 =head1 ATTRIBUTES
 
 =over
 
-=item * cloud
+=item * L<roles>
+=cut
+
+has roles => (
+    is => 'ro',
+    isa => 'Object',
+    writer => '_set_roles',
+    predicate => '_has_roles',    
+);
+
+=item * L<cloud>
 =cut
 
 has cloud => (
     is => 'ro',
     isa => 'Object',
-    required => 1,
 );
 
-=item * resources
+=item * L<resources>
 =cut
 
 has resources => (
@@ -45,6 +67,27 @@ has resources => (
 );
 
 =back
+
+=head1 METHOD MODIFIERS
+
+  around 'new' => override default constructor, set traits
+
+=cut
+
+#around 'new' => sub {
+#    my $orig = shift;
+#    my $class = shift;
+#    my $self = $class->$orig(@_);
+#
+# 
+#    $self->roles(
+#       $self->new_with_traits(
+#            traits         => [ qw( CPU Memory ) ],
+#        )
+#    );
+#    
+#    return $self;
+#};
 
 =head1 METHODS
 
@@ -87,14 +130,14 @@ sub get_cloud_resources {
     my $cloud_resources = $self->cloud->get_all_hypervisors;
     my $resources = {};
 
+    $self->_set_roles (
+        $self->new_with_traits(
+            traits         => [ qw( CPU Memory ) ],
+        )
+    ) unless $self->_has_roles;
+    
     my $dbh = Granite::Engine->dbh;
 	
-	my $totals = {
-		cores => 0,
-		memory => 0,
-	};
-
-	# TODO: Open new POE Session here (new pid) to be async
 	# Todo: skip hypervisor types not specified in config
 	for my $resource ( @{$cloud_resources} ){
 		$resources->{$resource->{id}} = {
@@ -103,7 +146,7 @@ sub get_cloud_resources {
 		};
 		$self->resources->{memory} += $resource->{free_ram_mb} || 0; 
 		if ( ! _is_remote($resource->{hypervisor_hostname}) ) {
-	    	my $cpu_info = get_cpuinfo( Sys::Info->new() );
+	    	my $cpu_info = $self->roles->cpuinfo();
 			my $cores_per_socket = ($cpu_info->identify)[0]->{number_of_cores};
 			my $sockets = $cpu_info->count / $cores_per_socket;
 			my $arch = ($cpu_info->identify)[0]->{architecture};
@@ -152,7 +195,7 @@ sub get_cloud_resources {
 		}
 	}
 
-	#warn Dumper $self->resources;
+	warn Dumper $self->resources;
 }
 
 # temp method, later to create class
