@@ -101,10 +101,10 @@ __PACKAGE__->table("resources");
   extra: {unsigned => 1}
   is_nullable: 0
 
-=head2 alloc_cores
+=head2 cpu_alloc_mask
 
   data_type: 'mediumint'
-  is_nullable: 0
+  is_nullable: 1
 
 =head2 diskspace_free
 
@@ -181,8 +181,8 @@ __PACKAGE__->add_columns(
   { data_type => "bigint", extra => { unsigned => 1 }, is_nullable => 0 },
   "alloc_memory",
   { data_type => "bigint", extra => { unsigned => 1 }, is_nullable => 0 },
-  "alloc_cores",
-  { data_type => "mediumint", is_nullable => 0 },
+  "cpu_alloc_mask",
+  { data_type => "mediumint", is_nullable => 1 },
   "diskspace_free",
   { data_type => "bigint", extra => { unsigned => 1 }, is_nullable => 0 },
   "tmpdiskspace_free",
@@ -241,8 +241,8 @@ __PACKAGE__->set_primary_key("id");
 __PACKAGE__->add_unique_constraint("hostname", ["hostname", "ipv4address", "ipv6address"]);
 
 
-# Created by DBIx::Class::Schema::Loader v0.07039 @ 2014-02-12 14:58:54
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:sbEmoJ0xoaK69ac1JcFNVQ
+# Created by DBIx::Class::Schema::Loader v0.07039 @ 2014-02-14 15:52:55
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:v/epbSbOR0C6EJasgBgaeA
 
 __PACKAGE__->load_components("InflateColumn::DateTime","EncodedColumn","TimeStamp");
 

@@ -445,7 +445,7 @@ sub _controller {
 
 sub handle_default {
     my ($event, $args) = @_[ARG0, ARG1];
-    $log->logcroak(
+    Granite->log->logcroak(
       'Session [ ' . $_[SESSION]->ID .
       " ] caught unhandled event '$event' with " . Dumper @{$args}
     );

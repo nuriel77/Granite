@@ -2,7 +2,7 @@
 --
 -- Host: localhost    Database: granite
 -- ------------------------------------------------------
--- Server version	5.5.35-0ubuntu0.12.04.1
+-- Server version       5.5.35-0ubuntu0.12.04.1
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -86,29 +86,29 @@ DROP TABLE IF EXISTS `resources`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `resources` (
-  `id` int(6) NOT NULL AUTO_INCREMENT,
+  `id` int(3) NOT NULL AUTO_INCREMENT,
+  `cpuload` decimal(3,1) unsigned NOT NULL,
   `hostname` varchar(42) NOT NULL,
   `ipv4address` varchar(15) NOT NULL,
   `ipv6address` varchar(128) NOT NULL,
-  `sockets` tinyint(1) NOT NULL,
-  `cores_per_socket` smallint(1) NOT NULL,
-  `threads_per_core` smallint(1) NOT NULL,
+  `sockets` tinyint(1) unsigned NOT NULL,
+  `cores_per_socket` smallint(1) unsigned NOT NULL,
+  `threads_per_core` smallint(1) unsigned NOT NULL,
   `os` tinytext NOT NULL,
-  `real_memory` mediumint(2) NOT NULL,
-  `alloc_memory` mediumint(2) NOT NULL,
-  `alloc_cores` bigint(4) NOT NULL,
-  `diskspace_free` mediumint(4) NOT NULL,
-  `tmpdiskspace_free` mediumint(4) NOT NULL,
+  `real_memory` bigint(1) unsigned NOT NULL,
+  `alloc_memory` bigint(1) unsigned NOT NULL,
+  `alloc_cores` mediumint(1) NOT NULL,
+  `diskspace_free` bigint(1) unsigned NOT NULL,
+  `tmpdiskspace_free` bigint(1) unsigned NOT NULL,
   `weight` smallint(2) NOT NULL,
   `boottime` datetime NOT NULL,
   `last_watts_reading` smallint(2) NOT NULL,
-  `last_temp_reading` int(11) NOT NULL,
-  `created` datetime NOT NULL,
+  `last_temp_reading` smallint(2) NOT NULL,
   `updated` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `notes` text NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `hostname` (`hostname`,`ipv4address`,`ipv6address`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='Resources';
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8 COMMENT='Resources';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -117,7 +117,32 @@ CREATE TABLE `resources` (
 
 LOCK TABLES `resources` WRITE;
 /*!40000 ALTER TABLE `resources` DISABLE KEYS */;
+INSERT INTO `resources` VALUES (4,0.1,'nova.clustervision.com','','',2,6,0,'',33721810944,22161334272,4095,45,0,0,'0000-00-00 00:00:00',0,0,'2014-02-12 13:57:11','');
 /*!40000 ALTER TABLE `resources` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `test`
+--
+
+DROP TABLE IF EXISTS `test`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `test` (
+  `id` int(6) NOT NULL AUTO_INCREMENT,
+  `name` varchar(42) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `test`
+--
+
+LOCK TABLES `test` WRITE;
+/*!40000 ALTER TABLE `test` DISABLE KEYS */;
+INSERT INTO `test` VALUES (1,'granite');
+/*!40000 ALTER TABLE `test` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
@@ -129,4 +154,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2014-02-10 12:33:00
+-- Dump completed on 2014-02-12 18:18:53

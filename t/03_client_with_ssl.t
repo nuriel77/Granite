@@ -26,7 +26,7 @@ BEGIN {
     use_ok( 'POE' );
 }
 
-
+use File::Touch;
     
 $SIG{INT} = \&DEAD;
     
@@ -48,7 +48,7 @@ our $crt    = $ENV{GRANITE_CERT}         || 'conf/ssl/client01.crt';
 our $key    = $ENV{GRANITE_KEY}          || 'conf/ssl/client01.key';
 our $password = 'system';
 $timeout = 5;
-
+our $n = 0;
 my $test_connections = $ENV{GRANITE_TEST_MAX_CONNECTIONS} || 10;
 %check = ( tcp => { $port => { name => 'Granite' } } );
 $client_connections = 0;
@@ -76,7 +76,25 @@ my $run = sub {
                     $server = $heap->{worker};
                 }
                 $kernel->sig_child($server->PID, "got_sig");
+                $kernel->yield('watch_client');
                 $kernel->delay('client_is_next'=>1);           
+            },
+            watch_client => sub {
+                if ( -e '/tmp/clients_busy' ){
+                    $n++;
+                    print STDERR '.';
+                    if ( $n == ( $test_connections * 10 ) ){
+                        $socket->close() if $socket;
+                        $server->kill();
+                        delete $_[HEAP]->{readwrite};
+                        delete $_[HEAP]->{wheel};
+                        $poe_kernel->sig_child( $server->PID, '_stop');
+                        $poe_kernel->stop();
+                    }
+                    else {
+                        $_[KERNEL]->delay('watch_client'=>1);
+                    }
+                }
             },
             got_sig => sub { $_[KERNEL]->post('_stop'); },
             client_is_next => sub {
@@ -186,6 +204,7 @@ my $run = sub {
                     $server_killed = 1;
                 }
                 if ( $client_connections >= $test_connections ){
+                    unlink ('/tmp/clients_busy');
                     $poe_kernel->stop();
                     sleep 1;
                     check_ports($host, $timeout, \%check);
@@ -200,6 +219,7 @@ my $run = sub {
     )
 };
 
+touch ('/tmp/client_done');
 for (1..$test_connections){
     POE::Test::Helpers->spawn(
         run   => $run,

@@ -79,7 +79,7 @@ sub _get_client_commands {
         # =========================
         getnodes        => sub {
             my ( $kernel, $heap, $wheel_id ) = @_;           
-            my $nodes = _get_scheduler_nodes($heap->{self}->scheduler);
+            my $nodes = get_scheduler_nodes();
             $kernel->post(
                 $kernel->alias_resolve('server'),
                 'reply_client',
@@ -459,8 +459,9 @@ sub _get_scheduler_res_q {
 
 =cut
 
-sub _get_scheduler_nodes {
-    my $scheduler = shift;
+sub get_scheduler_nodes {
+    my $scheduler = Granite::Engine->scheduler;
+    
     my $node_array;
     eval { $node_array = $scheduler->{nodes}->list_nodes };
     return $@ if $@;

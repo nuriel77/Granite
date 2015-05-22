@@ -44,14 +44,6 @@ has roles => (
     predicate => '_has_roles',    
 );
 
-=item * L<cloud>
-=cut
-
-#has cloud => (
-#    is => 'ro',
-#    isa => 'Object',
-#);
-
 =item * L<resources>
 =cut
 
@@ -108,6 +100,8 @@ has resources => (
 sub get_cloud_resources {
     my $self = shift;
     my $cloud_resources = Granite::Engine->cloud->get_all_hypervisors;
+    #my $scheduler_nodes = Granite::Engine::Controller->get_scheduler_nodes;
+    #warn Dumper $scheduler_nodes;
     my $resources = {};
 
     $self->_set_roles (
@@ -199,7 +193,9 @@ sub get_cloud_resources {
 sub test_request {
     my ( $self, $request ) = @_;
 
-    warn Dumper $request;        
+    #my $scheduler_nodes = Granite::Engine::Controller->get_scheduler_nodes;
+    #warn Dumper $scheduler_nodes;
+
     return undef if !$request || ref $request ne 'HASH'; 
     
     # For module ... check if has pluggable module (filter module)

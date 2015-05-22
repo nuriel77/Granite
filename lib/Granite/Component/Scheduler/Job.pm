@@ -29,6 +29,15 @@ has job => (
     required => 1,
 );
 
+=item * resources
+=cut
+
+has resources => (
+    is => 'ro',
+    isa => 'ArrayRef',
+    required => 1,
+);
+
 =back
 
 =head2 METHODS
@@ -57,6 +66,7 @@ sub process {
 
 sub _in_session {
     my $job = $self->job;
+    my $resources = $self->resources;
 
     # New pid
     # =======
@@ -72,11 +82,6 @@ sub _in_session {
             # ===========
             _start            => \&_init,
             setup_failure     => \&_failed_setup,
-            # STATE Resources
-            # ===============
-            resources_search  => \&_resources_search,
-            resources_success => \&_resouces_success,
-            resources_failure => \&_resources_failure,
             # STATE spawn
             # ===========
             spawn_instances   => \&_spawn_instances,
@@ -111,7 +116,7 @@ sub _in_session {
 sub _init {
     my ( $kernel, $heap ) = @_[ KERNEL, HEAP ];
     Granite->log->debug('{' . $heap->{job}->{job_id} . '} At _init');
-    $kernel->post($_[SESSION],'resources_search');
+    $kernel->post($_[SESSION],'spawn_instances');
 }
 
 =head4 B<_failed_setup>
@@ -136,6 +141,9 @@ sub _failed_setup {
 sub _resources_search {
     my ( $kernel, $heap ) = @_[ KERNEL, HEAP ];
     Granite->log->debug('{' . $heap->{job}->{job_id} . '} At _resources_search');
+
+    #Granite::Engine->rsm->find_resources($heap->{job});
+
     unless ( 1 ) {
         $kernel->yield('{' . $heap->{job}->{job_id} . '} resources_failure');
     }

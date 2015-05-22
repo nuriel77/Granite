@@ -102,7 +102,7 @@ sub _process_queue {
 
     }
 
-    _enqueue(\@_queue, $args, $cache );
+    _enqueue(\@_queue, $args, $cache, $_[SESSION] );
     $log->debug('Have ' . $pqa->get_item_count() . ' job(s) in active queue');
     $_[KERNEL]->delay('event_listener' => 0.3);
 
@@ -132,17 +132,21 @@ sub _populate_pqa {
 }
 
 sub _enqueue {
-    my ( $queue, $data, $cache ) = @_;
+    my ( $queue, $data, $cache, $session ) = @_;
     for my $job ( @{$data} ) {
         # Check if this job is already in the active queue
         unless ( grep { $_->[2]->{job_id} == $job->{job_id} } @{$queue} ){
-            my $job_api = Granite::Component::Scheduler::Job->new( job => $job );
+            #my $resources = Granite::Engine->rsm->find_resources($job);
+            #warn "GOT RESOURCES: " . Dumper $resources. " \n";
+            my $resources = [];
+            my $job_api = Granite::Component::Scheduler::Job->new( job => $job, resources => $resources);
             eval { $job_api->process };
             if ( $@ ){
                 $log->error( '{'.$job->{job_id}.'} Failed to enter lifecycle process: ' . $@ );
             }
             else {
                 $pqa->enqueue($job->{priority}, $job);
+                
                 if ( $cache ){
                     my $enc = eval { JSON::XS->new->allow_blessed->encode( $job ) };
                     $cache->set( 'job_'.$job->{job_id} => $enc )
