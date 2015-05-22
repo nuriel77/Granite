@@ -117,7 +117,7 @@ CREATE TABLE `resources` (
 
 LOCK TABLES `resources` WRITE;
 /*!40000 ALTER TABLE `resources` DISABLE KEYS */;
-INSERT INTO `resources` VALUES (4,0.1,'nova.clustervision.com','','',2,6,0,'',33721810944,22161334272,4095,45,0,0,'0000-00-00 00:00:00',0,0,'2014-02-12 13:57:11','');
+INSERT INTO `resources` VALUES (4,0.1,'localhost','','',2,6,0,'',33721810944,22161334272,4095,45,0,0,'0000-00-00 00:00:00',0,0,'2014-02-12 13:57:11','');
 /*!40000 ALTER TABLE `resources` ENABLE KEYS */;
 UNLOCK TABLES;
 

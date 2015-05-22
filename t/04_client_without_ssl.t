@@ -11,7 +11,7 @@ sub DEBUG { $ENV{GRANITE_DEBUG} }
 
 $| = 1;
 
-my $servername = $ENV{GRANITE_HOSTNAME} || 'nova.clustervision.com';
+my $servername = $ENV{GRANITE_HOSTNAME} || 'localhost';
 my $host       = $ENV{GRANITE_BIND}     || '127.0.0.1';
 my $port       = $ENV{GRANITE_PORT}     || 21212;
 my $password   = 'system';
