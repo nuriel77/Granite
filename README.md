@@ -5,4 +5,6 @@ The common problem with scheduling in the cloud was that Slurm was bascially des
 
 Granite is an engine that can load and work with different cloud technologies and schedulers and allow for custom scheduling algorithms to be loaded.
 
+In its core Granite utilizes Perl's POE and relies heavely on Moose.
+
 I have been working on this project in 2013, but had to abandon it because I stated working in other development companies and other projects.
